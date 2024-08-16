@@ -94,6 +94,7 @@ public class JGitPropertyKeySource implements PropertyKeySource {
 
     @Override
     public Collection<PropertyKey> providedKeys() {
+        // TODO: detect is this git checkout at all, and only then emit keys
         return propertyKeys;
     }
 }
