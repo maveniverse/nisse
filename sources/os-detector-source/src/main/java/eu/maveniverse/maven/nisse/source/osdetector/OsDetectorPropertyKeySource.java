@@ -7,9 +7,9 @@
  */
 package eu.maveniverse.maven.nisse.source.osdetector;
 
-import eu.maveniverse.maven.nisse.core.KnownPropertyKey;
 import eu.maveniverse.maven.nisse.core.PropertyKey;
 import eu.maveniverse.maven.nisse.core.PropertyKeySource;
+import eu.maveniverse.maven.nisse.core.SimplePropertyKey;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -76,15 +76,15 @@ public class OsDetectorPropertyKeySource implements PropertyKeySource {
         final String detectedArch = normalizeArch(osArch);
         final int detectedBitness = determineBitness(detectedArch);
 
-        result.add(new KnownPropertyKey(this, DETECTED_NAME, detectedName));
-        result.add(new KnownPropertyKey(this, DETECTED_ARCH, detectedArch));
-        result.add(new KnownPropertyKey(this, DETECTED_BITNESS, "" + detectedBitness));
+        result.add(new SimplePropertyKey(this, DETECTED_NAME, detectedName));
+        result.add(new SimplePropertyKey(this, DETECTED_ARCH, detectedArch));
+        result.add(new SimplePropertyKey(this, DETECTED_BITNESS, "" + detectedBitness));
 
         final Matcher versionMatcher = VERSION_REGEX.matcher(osVersion);
         if (versionMatcher.matches()) {
-            result.add(new KnownPropertyKey(this, DETECTED_VERSION, versionMatcher.group(1)));
-            result.add(new KnownPropertyKey(this, DETECTED_VERSION_MAJOR, versionMatcher.group(2)));
-            result.add(new KnownPropertyKey(this, DETECTED_VERSION_MINOR, versionMatcher.group(3)));
+            result.add(new SimplePropertyKey(this, DETECTED_VERSION, versionMatcher.group(1)));
+            result.add(new SimplePropertyKey(this, DETECTED_VERSION_MAJOR, versionMatcher.group(2)));
+            result.add(new SimplePropertyKey(this, DETECTED_VERSION_MINOR, versionMatcher.group(3)));
         }
 
         final String failOnUnknownOS = System.getProperty("failOnUnknownOS");
@@ -103,18 +103,18 @@ public class OsDetectorPropertyKeySource implements PropertyKeySource {
         // For Linux systems, add additional properties regarding details of the OS.
         final LinuxRelease linuxRelease = "linux".equals(detectedName) ? getLinuxRelease() : null;
         if (linuxRelease != null) {
-            result.add(new KnownPropertyKey(this, DETECTED_RELEASE, linuxRelease.id));
+            result.add(new SimplePropertyKey(this, DETECTED_RELEASE, linuxRelease.id));
             if (linuxRelease.version != null) {
-                result.add(new KnownPropertyKey(this, DETECTED_RELEASE_VERSION, linuxRelease.version));
+                result.add(new SimplePropertyKey(this, DETECTED_RELEASE_VERSION, linuxRelease.version));
             }
 
             // Add properties for all systems that this OS is "like".
             for (String like : linuxRelease.like) {
                 final String propKey = DETECTED_RELEASE_LIKE_PREFIX + like;
-                result.add(new KnownPropertyKey(this, propKey, "true"));
+                result.add(new SimplePropertyKey(this, propKey, "true"));
             }
         }
-        result.add(new KnownPropertyKey(this, DETECTED_CLASSIFIER, detectedClassifierBuilder));
+        result.add(new SimplePropertyKey(this, DETECTED_CLASSIFIER, detectedClassifierBuilder));
 
         return Collections.unmodifiableList(result);
     }

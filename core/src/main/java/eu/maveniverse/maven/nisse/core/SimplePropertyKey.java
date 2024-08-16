@@ -12,13 +12,13 @@ import static java.util.Objects.requireNonNull;
 import java.util.Optional;
 
 /**
- * A simple property key that is either already known, or is 'cheap' to calculate, and it can be prepared ahead of time.
- * It must have a value.
+ * A simple property key that is either already known, or is 'cheap' to calculate ahead of time. It must have a
+ * non-{@code null} value.
  */
-public class KnownPropertyKey extends PropertyKey {
+public class SimplePropertyKey extends PropertyKey {
     private final String value;
 
-    public KnownPropertyKey(PropertyKeySource source, String key, String value) {
+    public SimplePropertyKey(PropertyKeySource source, String key, String value) {
         super(source, key);
         this.value = requireNonNull(value, "value");
     }

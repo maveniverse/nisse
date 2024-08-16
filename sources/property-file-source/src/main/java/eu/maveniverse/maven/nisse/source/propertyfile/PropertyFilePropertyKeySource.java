@@ -7,9 +7,9 @@
  */
 package eu.maveniverse.maven.nisse.source.propertyfile;
 
-import eu.maveniverse.maven.nisse.core.KnownPropertyKey;
 import eu.maveniverse.maven.nisse.core.PropertyKey;
 import eu.maveniverse.maven.nisse.core.PropertyKeySource;
+import eu.maveniverse.maven.nisse.core.SimplePropertyKey;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -38,7 +38,7 @@ public class PropertyFilePropertyKeySource implements PropertyKeySource {
 
     @Inject
     public PropertyFilePropertyKeySource(@Nullable @Named("nisse.property-file.name") String propertyFile) {
-        ArrayList<KnownPropertyKey> propertyKeys = new ArrayList<>();
+        ArrayList<SimplePropertyKey> propertyKeys = new ArrayList<>();
         if (propertyFile != null) {
             Path propertyFilePath = Paths.get(propertyFile);
             if (Files.isRegularFile(propertyFilePath)) {
@@ -46,7 +46,7 @@ public class PropertyFilePropertyKeySource implements PropertyKeySource {
                     Properties properties = new Properties();
                     properties.load(stream);
                     for (final String key : properties.stringPropertyNames()) {
-                        propertyKeys.add(new KnownPropertyKey(this, key, properties.getProperty(key)));
+                        propertyKeys.add(new SimplePropertyKey(this, key, properties.getProperty(key)));
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
