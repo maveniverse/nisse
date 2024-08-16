@@ -13,6 +13,7 @@ import eu.maveniverse.maven.nisse.core.PropertyKey;
 import eu.maveniverse.maven.nisse.core.PropertyKeyManager;
 import eu.maveniverse.maven.nisse.core.PropertyKeySource;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -23,21 +24,21 @@ import javax.inject.Singleton;
 @Singleton
 @Named
 class DefaultPropertyKeyManager implements PropertyKeyManager {
-    private final Map<String, PropertyKeySource> sources;
+    private final List<PropertyKeySource> sources;
 
     @Inject
-    public DefaultPropertyKeyManager(Map<String, PropertyKeySource> sources) {
+    public DefaultPropertyKeyManager(List<PropertyKeySource> sources) {
         this.sources = requireNonNull(sources, "sources");
     }
 
     @Override
-    public Collection<PropertyKey> allKeys() {
-        return sources.values().stream().flatMap(s -> s.providedKeys().stream()).collect(Collectors.toList());
+    public Collection<PropertyKey> allKeys(Map<String, String> config) {
+        return sources.stream().flatMap(s -> s.providedKeys(config).stream()).collect(Collectors.toList());
     }
 
     @Override
-    public Optional<PropertyKey> lookup(String key) {
+    public Optional<PropertyKey> lookupKey(Map<String, String> config, String key) {
         requireNonNull(key, "key");
-        return allKeys().stream().filter(k -> key.equals(k.getKey())).findFirst();
+        return allKeys(config).stream().filter(k -> key.equals(k.getKey())).findFirst();
     }
 }

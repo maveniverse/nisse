@@ -5,18 +5,15 @@
  * which accompanies this distribution, and is available at
  * https://www.eclipse.org/legal/epl-v20.html
  */
-package eu.maveniverse.maven.nisse.extension.internal;
+package eu.maveniverse.maven.nisse.extension3.internal;
 
-import static eu.maveniverse.maven.nisse.core.Nisse.PROPERTY_PREFIX;
 import static java.util.Objects.requireNonNull;
 
-import eu.maveniverse.maven.nisse.core.PropertyKey;
 import eu.maveniverse.maven.nisse.core.PropertyKeyManager;
-import java.util.Optional;
-import java.util.Properties;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.apache.maven.cli.CliRequest;
 import org.apache.maven.cli.configuration.ConfigurationProcessor;
@@ -27,14 +24,14 @@ import org.eclipse.sisu.Priority;
 @Named
 @Priority(200)
 public class NisseConfigurationProcessor implements ConfigurationProcessor {
-    private final Provider<PropertyKeyManager> propertyKeyManagerProvider;
+    private final PropertyKeyManager propertyKeyManager;
     private final SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor;
 
     @Inject
     public NisseConfigurationProcessor(
-            Provider<PropertyKeyManager> propertyKeyManagerProvider,
+            PropertyKeyManager propertyKeyManager,
             SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor) {
-        this.propertyKeyManagerProvider = requireNonNull(propertyKeyManagerProvider, "propertyKeyManagerProvider");
+        this.propertyKeyManager = requireNonNull(propertyKeyManager, "propertyKeyManager");
         this.settingsXmlConfigurationProcessor =
                 requireNonNull(settingsXmlConfigurationProcessor, "settingsXmlConfigurationProcessor");
     }
@@ -43,12 +40,15 @@ public class NisseConfigurationProcessor implements ConfigurationProcessor {
     public void process(CliRequest request) throws Exception {
         settingsXmlConfigurationProcessor.process(request);
 
-        // push what is needed
-        Properties userProperties = request.getUserProperties();
-        PropertyKeyManager propertyKeyManager = propertyKeyManagerProvider.get();
-        for (PropertyKey propertyKey : propertyKeyManager.allKeys()) {
-            Optional<String> value = propertyKey.getValue();
-            value.ifPresent(s -> userProperties.setProperty(PROPERTY_PREFIX + propertyKey.getKey(), s));
-        }
+        // push what we have into user properties
+        propertyKeyManager
+                .allKeys(request.getUserProperties().entrySet().stream()
+                        .collect(Collectors.toMap(
+                                e -> String.valueOf(e.getKey()),
+                                e -> String.valueOf(e.getValue()),
+                                (prev, next) -> next,
+                                HashMap::new)))
+                .forEach(v ->
+                        v.getValue().ifPresent(s -> request.getUserProperties().setProperty(v.getKey(), s)));
     }
 }

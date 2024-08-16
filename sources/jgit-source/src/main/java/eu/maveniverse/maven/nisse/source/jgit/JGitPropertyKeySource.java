@@ -9,16 +9,14 @@ package eu.maveniverse.maven.nisse.source.jgit;
 
 import eu.maveniverse.maven.nisse.core.PropertyKey;
 import eu.maveniverse.maven.nisse.core.PropertyKeySource;
+import eu.maveniverse.maven.nisse.core.SimplePropertyKey;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import org.eclipse.jgit.api.Git;
@@ -26,6 +24,9 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 
+/**
+ * A source using JGit to get some Git info.
+ */
 @Singleton
 @Named(JGitPropertyKeySource.NAME)
 public class JGitPropertyKeySource implements PropertyKeySource {
@@ -37,64 +38,45 @@ public class JGitPropertyKeySource implements PropertyKeySource {
     private static final String JGIT_AUTHOR = PREFIX + "author";
     private static final String JGIT_COMMITTER = PREFIX + "committer";
 
-    private final List<PropertyKey> propertyKeys = Collections.unmodifiableList(Arrays.asList(
-            new JGitPropertyKey(this, JGIT_COMMIT),
-            new JGitPropertyKey(this, JGIT_DATE),
-            new JGitPropertyKey(this, JGIT_AUTHOR),
-            new JGitPropertyKey(this, JGIT_COMMITTER)));
-
-    private final ConcurrentHashMap<String, Map<String, String>> cache = new ConcurrentHashMap<>();
-
-    String getValue(String key) {
-        return cache.computeIfAbsent("data", k -> {
-                    HashMap<String, String> data = new HashMap<>();
-                    try (Repository repository = new FileRepositoryBuilder()
-                            .readEnvironment() // scan environment GIT_* variables
-                            .findGitDir() // scan up the file system tree
-                            .build(); ) {
-
-                        if (repository.getDirectory() != null) {
-                            RevCommit lastCommit = new Git(repository)
-                                    .log()
-                                    .setMaxCount(1)
-                                    .call()
-                                    .iterator()
-                                    .next();
-
-                            data.put(JGIT_COMMIT, lastCommit.getName());
-                            data.put(
-                                    JGIT_DATE,
-                                    ZonedDateTime.ofInstant(
-                                                    Instant.ofEpochSecond(lastCommit.getCommitTime()),
-                                                    lastCommit
-                                                            .getAuthorIdent()
-                                                            .getTimeZone()
-                                                            .toZoneId())
-                                            .format(DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z")));
-                            data.put(
-                                    JGIT_COMMITTER,
-                                    lastCommit
-                                                    .getCommitterIdent()
-                                                    .toExternalString()
-                                                    .split(">")[0] + ">");
-                            data.put(
-                                    JGIT_AUTHOR,
-                                    lastCommit
-                                                    .getAuthorIdent()
-                                                    .toExternalString()
-                                                    .split(">")[0] + ">");
-                        }
-                    } catch (Exception e) {
-                        // ignore
-                    }
-                    return data;
-                })
-                .get(key);
-    }
-
     @Override
-    public Collection<PropertyKey> providedKeys() {
-        // TODO: detect is this git checkout at all, and only then emit keys
-        return propertyKeys;
+    public Collection<PropertyKey> providedKeys(Map<String, String> config) {
+        ArrayList<PropertyKey> result = new ArrayList<>();
+        try (Repository repository = new FileRepositoryBuilder()
+                .readEnvironment() // scan environment GIT_* variables
+                .findGitDir() // scan up the file system tree
+                .build()) {
+
+            if (repository.getDirectory() != null) {
+                RevCommit lastCommit = new Git(repository)
+                        .log()
+                        .setMaxCount(1)
+                        .call()
+                        .iterator()
+                        .next();
+
+                result.add(new SimplePropertyKey(this, JGIT_COMMIT, lastCommit.getName()));
+                result.add(new SimplePropertyKey(
+                        this,
+                        JGIT_DATE,
+                        ZonedDateTime.ofInstant(
+                                        Instant.ofEpochSecond(lastCommit.getCommitTime()),
+                                        lastCommit
+                                                .getAuthorIdent()
+                                                .getTimeZone()
+                                                .toZoneId())
+                                .format(DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z"))));
+                result.add(new SimplePropertyKey(
+                        this,
+                        JGIT_COMMITTER,
+                        lastCommit.getCommitterIdent().toExternalString().split(">")[0] + ">"));
+                result.add(new SimplePropertyKey(
+                        this,
+                        JGIT_AUTHOR,
+                        lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">"));
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return Collections.unmodifiableList(result);
     }
 }

@@ -8,13 +8,14 @@
 package eu.maveniverse.maven.nisse.core;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 
 /**
  * A property key source, that provides all the supported keys, and is able to evaluate them.
  */
 public interface PropertyKeyManager {
-    Collection<PropertyKey> allKeys();
+    Collection<PropertyKey> allKeys(Map<String, String> config);
 
-    Optional<PropertyKey> lookup(String key);
+    Optional<PropertyKey> lookupKey(Map<String, String> config, String key);
 }

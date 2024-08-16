@@ -21,12 +21,17 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
+/**
+ * OS source heavily inspired by <a href="https://github.com/trustin/os-maven-plugin">trustin/os-maven-plugin</a>.
+ * This source creates properties in constructor and keeps the forever.
+ */
 @Singleton
 @Named(OsDetectorPropertyKeySource.NAME)
 public class OsDetectorPropertyKeySource implements PropertyKeySource {
@@ -62,7 +67,7 @@ public class OsDetectorPropertyKeySource implements PropertyKeySource {
     }
 
     @Override
-    public Collection<PropertyKey> providedKeys() {
+    public Collection<PropertyKey> providedKeys(Map<String, String> config) {
         return propertyKeys;
     }
 

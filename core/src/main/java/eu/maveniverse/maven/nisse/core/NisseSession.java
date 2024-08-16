@@ -8,14 +8,11 @@
 package eu.maveniverse.maven.nisse.core;
 
 import java.util.Collection;
-import java.util.Map;
 
-/**
- * A property key source, that provides all the supported keys, and is able to evaluate them.
- */
-public interface PropertyKeySource {
-    /**
-     * Returns a collection of provided {@link PropertyKey}s, never {@code null}.
-     */
-    Collection<PropertyKey> providedKeys(Map<String, String> config);
+public interface NisseSession {
+    Collection<PropertyKey> getSessionPropertyKeys();
+
+    Collection<PropertyKey> getSessionMandatoryPropertyKeys();
+
+    void addSessionMandatoryPropertyKey(PropertyKey key);
 }

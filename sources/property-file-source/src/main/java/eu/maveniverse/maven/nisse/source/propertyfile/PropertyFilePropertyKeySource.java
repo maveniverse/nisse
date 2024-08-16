@@ -21,9 +21,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 import java.util.Properties;
-import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
@@ -37,11 +36,9 @@ public class PropertyFilePropertyKeySource implements PropertyKeySource {
 
     public static final String FILE_NAME = PROPERTY_PREFIX + NAME + ".name";
 
-    private final List<PropertyKey> propertyKeys;
-
-    @Inject
-    public PropertyFilePropertyKeySource() {
-        String propertyFile = System.getProperty(FILE_NAME);
+    @Override
+    public Collection<PropertyKey> providedKeys(Map<String, String> config) {
+        String propertyFile = config.get(FILE_NAME);
         ArrayList<SimplePropertyKey> propertyKeys = new ArrayList<>();
         if (propertyFile != null) {
             Path propertyFilePath = Paths.get(propertyFile);
@@ -57,11 +54,6 @@ public class PropertyFilePropertyKeySource implements PropertyKeySource {
                 }
             }
         }
-        this.propertyKeys = Collections.unmodifiableList(propertyKeys);
-    }
-
-    @Override
-    public Collection<PropertyKey> providedKeys() {
-        return propertyKeys;
+        return Collections.unmodifiableList(propertyKeys);
     }
 }
