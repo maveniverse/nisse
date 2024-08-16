@@ -33,6 +33,21 @@
         </exclusion>
       </exclusions>
     </dependency>
+    <dependency>
+      <groupId>eu.maveniverse.maven.nisse.sources</groupId>
+      <artifactId>jgit-source</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>eu.maveniverse.maven.nisse.sources</groupId>
+      <artifactId>os-source</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>eu.maveniverse.maven.nisse.sources</groupId>
+      <artifactId>property-file-source</artifactId>
+      <version>${project.version}</version>
+    </dependency>
 
     <!-- Maven -->
     <dependency>

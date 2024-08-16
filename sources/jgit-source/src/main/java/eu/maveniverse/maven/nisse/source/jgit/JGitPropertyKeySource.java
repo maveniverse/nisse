@@ -31,10 +31,11 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 public class JGitPropertyKeySource implements PropertyKeySource {
     public static final String NAME = "jgit";
 
-    private static final String JGIT_COMMIT = "jgit.commit";
-    private static final String JGIT_DATE = "jgit.date";
-    private static final String JGIT_AUTHOR = "jgit.author";
-    private static final String JGIT_COMMITTER = "jgit.committer";
+    private static final String PREFIX = NAME + ".";
+    private static final String JGIT_COMMIT = PREFIX + "commit";
+    private static final String JGIT_DATE = PREFIX + "date";
+    private static final String JGIT_AUTHOR = PREFIX + "author";
+    private static final String JGIT_COMMITTER = PREFIX + "committer";
 
     private final List<PropertyKey> propertyKeys = Collections.unmodifiableList(Arrays.asList(
             new JGitPropertyKey(this, JGIT_COMMIT),

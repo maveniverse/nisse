@@ -30,16 +30,17 @@ import javax.inject.Singleton;
 @Singleton
 @Named(OsDetectorPropertyKeySource.NAME)
 public class OsDetectorPropertyKeySource implements PropertyKeySource {
-    public static final String NAME = "os-detector";
+    public static final String NAME = "os";
 
-    private static final String DETECTED_NAME = "os.detected.name";
-    private static final String DETECTED_ARCH = "os.detected.arch";
-    private static final String DETECTED_BITNESS = "os.detected.bitness";
-    private static final String DETECTED_VERSION = "os.detected.version";
+    private static final String PREFIX = NAME + ".";
+    private static final String DETECTED_NAME = PREFIX + "name";
+    private static final String DETECTED_ARCH = PREFIX + "arch";
+    private static final String DETECTED_BITNESS = PREFIX + "bitness";
+    private static final String DETECTED_VERSION = PREFIX + "version";
     private static final String DETECTED_VERSION_MAJOR = DETECTED_VERSION + ".major";
     private static final String DETECTED_VERSION_MINOR = DETECTED_VERSION + ".minor";
-    private static final String DETECTED_CLASSIFIER = "os.detected.classifier";
-    private static final String DETECTED_RELEASE = "os.detected.release";
+    private static final String DETECTED_CLASSIFIER = PREFIX + "classifier";
+    private static final String DETECTED_RELEASE = PREFIX + "release";
     private static final String DETECTED_RELEASE_VERSION = DETECTED_RELEASE + ".version";
     private static final String DETECTED_RELEASE_LIKE_PREFIX = DETECTED_RELEASE + ".like.";
 

@@ -7,14 +7,8 @@
  */
 package eu.maveniverse.maven.nisse.core;
 
-import java.util.Collection;
-import java.util.Optional;
+public class Nisse {
+    private Nisse() {}
 
-/**
- * A property key source, that provides all the supported keys, and is able to evaluate them.
- */
-public interface PropertyKeyManager {
-    Collection<PropertyKey> allKeys();
-
-    Optional<PropertyKey> lookup(String key);
+    public static final String PROPERTY_PREFIX = "nisse.";
 }

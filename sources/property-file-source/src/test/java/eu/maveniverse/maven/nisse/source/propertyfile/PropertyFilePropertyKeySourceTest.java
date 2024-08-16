@@ -10,9 +10,16 @@ public class PropertyFilePropertyKeySourceTest {
     @Test
     void smoke(@TempDir Path tempDir) throws Exception {
         Path propertyFile = tempDir.resolve("property.properties");
-        Files.write(propertyFile, Arrays.asList("one=einz", "two=zwei"));
-        new PropertyFilePropertyKeySource(propertyFile.toAbsolutePath().toString())
-                .providedKeys()
-                .forEach(k -> System.out.println(k + " = " + k.getValue().orElse("")));
+        Files.write(propertyFile, Arrays.asList("one=en", "two=to", "three=tre"));
+        try {
+            System.setProperty(
+                    PropertyFilePropertyKeySource.FILE_NAME,
+                    propertyFile.toAbsolutePath().toString());
+            new PropertyFilePropertyKeySource()
+                    .providedKeys()
+                    .forEach(k -> System.out.println(k + " = " + k.getValue().orElse("")));
+        } finally {
+            System.clearProperty(PropertyFilePropertyKeySource.FILE_NAME);
+        }
     }
 }

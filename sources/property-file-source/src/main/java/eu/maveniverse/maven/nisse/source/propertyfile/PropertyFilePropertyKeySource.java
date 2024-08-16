@@ -7,6 +7,8 @@
  */
 package eu.maveniverse.maven.nisse.source.propertyfile;
 
+import static eu.maveniverse.maven.nisse.core.Nisse.PROPERTY_PREFIX;
+
 import eu.maveniverse.maven.nisse.core.PropertyKey;
 import eu.maveniverse.maven.nisse.core.PropertyKeySource;
 import eu.maveniverse.maven.nisse.core.SimplePropertyKey;
@@ -24,7 +26,6 @@ import java.util.Properties;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
-import org.eclipse.sisu.Nullable;
 
 /**
  * A simple property key source that accepts a Java Properties file name, and will load up properties from it.
@@ -34,10 +35,13 @@ import org.eclipse.sisu.Nullable;
 public class PropertyFilePropertyKeySource implements PropertyKeySource {
     public static final String NAME = "property-file";
 
+    public static final String FILE_NAME = PROPERTY_PREFIX + NAME + ".name";
+
     private final List<PropertyKey> propertyKeys;
 
     @Inject
-    public PropertyFilePropertyKeySource(@Nullable @Named("nisse.property-file.name") String propertyFile) {
+    public PropertyFilePropertyKeySource() {
+        String propertyFile = System.getProperty(FILE_NAME);
         ArrayList<SimplePropertyKey> propertyKeys = new ArrayList<>();
         if (propertyFile != null) {
             Path propertyFilePath = Paths.get(propertyFile);
