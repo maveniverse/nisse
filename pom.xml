@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright (c) 2023-2024 Maveniverse Org.
+    All rights reserved. This program and the accompanying materials
+    are made available under the terms of the Eclipse Public License v2.0
+    which accompanies this distribution, and is available at
+    https://www.eclipse.org/legal/epl-v20.html
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>eu.maveniverse.maven.parent</groupId>
+    <artifactId>parent</artifactId>
+    <version>16</version>
+  </parent>
+
+  <groupId>eu.maveniverse.maven.nisse</groupId>
+  <artifactId>nisse</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>${project.groupId}:${project.artifactId}</name>
+  <description>Nisse Maven Extension.</description>
+
+  <url>https://www.maveniverse.eu/nisse</url>
+
+  <licenses>
+    <license>
+      <name>EPL-2.0</name>
+      <url>https://www.eclipse.org/legal/epl-2.0/</url>
+    </license>
+  </licenses>
+
+  <modules>
+    <module>core</module>
+    <module>sources</module>
+    <module>extension3</module>
+    <module>extension4</module>
+  </modules>
+
+  <scm>
+    <connection>scm:git:git@github.com:maveniverse/nisse.git</connection>
+    <developerConnection>scm:git:git@github.com:maveniverse/nisse.git</developerConnection>
+    <tag>HEAD</tag>
+    <url>https://github.com/maveniverse/nisse</url>
+  </scm>
+
+  <issueManagement>
+    <system>Github</system>
+    <url>https://github.com/maveniverse/nisse/issues</url>
+  </issueManagement>
+
+  <ciManagement>
+    <system>Github</system>
+    <url>https://github.com/maveniverse/nisse/actions</url>
+  </ciManagement>
+
+  <properties>
+    <project.build.outputTimestamp>2024-08-14T11:50:16Z</project.build.outputTimestamp>
+
+    <!--
+    Build time: latest stable Maven and latest Java LTS.
+    Run time: "not so old" Maven (3.6.3+) and latest Java LTS.
+    -->
+    <maven.compiler.release>8</maven.compiler.release>
+    <requireBuildtimeJavaVersion.version>[21.0.3,)</requireBuildtimeJavaVersion.version>
+    <requireBuildtimeMavenVersion.version>[3.9.8,)</requireBuildtimeMavenVersion.version>
+    <requireRuntimeMavenVersion.version>[3.6.3,)</requireRuntimeMavenVersion.version>
+
+    <!-- Dependency versions (all Maven version bound) -->
+    <version.maven>3.9.8</version.maven>
+    <version.resolver>1.9.20</version.resolver>
+    <version.slf4j>1.7.36</version.slf4j>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- Internal -->
+      <dependency>
+        <groupId>eu.maveniverse.maven.nisse</groupId>
+        <artifactId>core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <!-- Logging (except API, runtime only) -->
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>${version.slf4j}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-simple</artifactId>
+        <version>${version.slf4j}</version>
+      </dependency>
+
+      <!-- Resolver + Maven -->
+      <dependency>
+        <groupId>org.apache.maven.resolver</groupId>
+        <artifactId>maven-resolver-api</artifactId>
+        <version>${version.resolver}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.maven.resolver</groupId>
+        <artifactId>maven-resolver-util</artifactId>
+        <version>${version.resolver}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.maven</groupId>
+        <artifactId>maven-core</artifactId>
+        <version>${version.maven}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.maven</groupId>
+        <artifactId>maven-embedder</artifactId>
+        <version>${version.maven}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.maven</groupId>
+        <artifactId>maven-model</artifactId>
+        <version>${version.maven}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.maven</groupId>
+        <artifactId>maven-model-builder</artifactId>
+        <version>${version.maven}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.codehaus.plexus</groupId>
+        <artifactId>plexus-utils</artifactId>
+        <version>3.5.1</version>
+      </dependency>
+
+      <!-- DI -->
+      <dependency>
+        <groupId>javax.inject</groupId>
+        <artifactId>javax.inject</artifactId>
+        <version>1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.eclipse.sisu</groupId>
+        <artifactId>org.eclipse.sisu.inject</artifactId>
+        <version>0.9.0.M3</version>
+      </dependency>
+
+      <!-- Test -->
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-api</artifactId>
+        <version>5.11.0</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.eclipse.sisu</groupId>
+        <artifactId>sisu-maven-plugin</artifactId>
+        <version>${version.sisu}</version>
+        <executions>
+          <execution>
+            <id>index-project</id>
+            <goals>
+              <goal>main-index</goal>
+              <goal>test-index</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.gaul</groupId>
+        <artifactId>modernizer-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>modernizer</id>
+            <goals>
+              <goal>modernizer</goal>
+            </goals>
+            <phase>verify</phase>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

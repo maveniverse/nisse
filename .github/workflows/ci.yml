@@ -1,0 +1,18 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    name: Verify
+    uses: maveniverse/parent/.github/workflows/ci.yml@release-16
+    with:
+      maven-single-run: false
+      maven-matrix: '[ "3.9.8", "4.0.0-beta-3" ]'
+      jdk-matrix: '[ "21" ]'
+      maven-test: './mvnw clean verify -e -B -V -P run-its'
+
