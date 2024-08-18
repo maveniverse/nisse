@@ -71,7 +71,7 @@
     <requireRuntimeMavenVersion.version>[3.6.3,)</requireRuntimeMavenVersion.version>
 
     <!-- Dependency versions (all Maven version bound) -->
-    <version.maven>3.9.8</version.maven>
+    <version.maven>3.9.9</version.maven>
     <version.resolver>1.9.20</version.resolver>
     <version.slf4j>1.7.36</version.slf4j>
   </properties>
