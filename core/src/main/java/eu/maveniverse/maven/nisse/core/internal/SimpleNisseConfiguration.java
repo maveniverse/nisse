@@ -15,6 +15,7 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Collectors;
 
 public final class SimpleNisseConfiguration implements NisseConfiguration {
@@ -92,6 +93,10 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
             return this;
         }
 
+        public Builder withSystemProperties(Properties systemProperties) {
+            return withSystemProperties(toMap(systemProperties));
+        }
+
         public Builder withUserProperties(Map<String, String> userProperties) {
             if (userProperties != null) {
                 this.userProperties = new HashMap<>(userProperties);
@@ -101,6 +106,10 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
             return this;
         }
 
+        public Builder withUserProperties(Properties userProperties) {
+            return withUserProperties(toMap(userProperties));
+        }
+
         public Builder withCurrentWorkingDirectory(Path currentWorkingDirectory) {
             if (currentWorkingDirectory != null) {
                 this.currentWorkingDirectory = currentWorkingDirectory.toAbsolutePath();
@@ -108,6 +117,19 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                 this.currentWorkingDirectory = Paths.get("");
             }
             return this;
+        }
+    }
+
+    private static Map<String, String> toMap(Properties properties) {
+        if (properties != null) {
+            return properties.entrySet().stream()
+                    .collect(Collectors.toMap(
+                            e -> String.valueOf(e.getKey()),
+                            e -> String.valueOf(e.getValue()),
+                            (prev, next) -> next,
+                            HashMap::new));
+        } else {
+            return null;
         }
     }
 }

@@ -11,16 +11,20 @@ import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseSession;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public final class SimpleNisseSession implements NisseSession {
     private final NisseConfiguration configuration;
     private final ConcurrentMap<String, Object> data;
+    private final Map<String, String> properties;
 
-    private SimpleNisseSession(NisseConfiguration configuration, ConcurrentMap<String, Object> data) {
+    private SimpleNisseSession(
+            NisseConfiguration configuration, ConcurrentMap<String, Object> data, Map<String, String> properties) {
         this.configuration = requireNonNull(configuration, "configuration");
         this.data = requireNonNull(data, "data");
+        this.properties = requireNonNull(properties, "properties");
     }
 
     @Override
@@ -33,8 +37,13 @@ public final class SimpleNisseSession implements NisseSession {
         return data;
     }
 
-    public static SimpleNisseSession create(NisseConfiguration configuration) {
+    @Override
+    public Map<String, String> getAllProperties() {
+        return properties;
+    }
+
+    public static SimpleNisseSession create(NisseConfiguration configuration, Map<String, String> properties) {
         requireNonNull(configuration, "configuration");
-        return new SimpleNisseSession(configuration, new ConcurrentHashMap<>());
+        return new SimpleNisseSession(configuration, new ConcurrentHashMap<>(), properties);
     }
 }

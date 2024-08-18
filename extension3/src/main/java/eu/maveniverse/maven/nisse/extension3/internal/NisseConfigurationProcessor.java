@@ -9,9 +9,11 @@ package eu.maveniverse.maven.nisse.extension3.internal;
 
 import static java.util.Objects.requireNonNull;
 
-import eu.maveniverse.maven.nisse.core.PropertyKeyManager;
-import java.util.HashMap;
-import java.util.stream.Collectors;
+import eu.maveniverse.maven.nisse.core.NisseConfiguration;
+import eu.maveniverse.maven.nisse.core.NisseManager;
+import eu.maveniverse.maven.nisse.core.NisseSession;
+import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
+import java.nio.file.Paths;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -24,14 +26,13 @@ import org.eclipse.sisu.Priority;
 @Named
 @Priority(200)
 public class NisseConfigurationProcessor implements ConfigurationProcessor {
-    private final PropertyKeyManager propertyKeyManager;
+    private final NisseManager nisseManager;
     private final SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor;
 
     @Inject
     public NisseConfigurationProcessor(
-            PropertyKeyManager propertyKeyManager,
-            SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor) {
-        this.propertyKeyManager = requireNonNull(propertyKeyManager, "propertyKeyManager");
+            NisseManager nisseManager, SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor) {
+        this.nisseManager = requireNonNull(nisseManager, "propertyKeyManager");
         this.settingsXmlConfigurationProcessor =
                 requireNonNull(settingsXmlConfigurationProcessor, "settingsXmlConfigurationProcessor");
     }
@@ -41,14 +42,14 @@ public class NisseConfigurationProcessor implements ConfigurationProcessor {
         settingsXmlConfigurationProcessor.process(request);
 
         // push what we have into user properties
-        propertyKeyManager
-                .allKeys(request.getUserProperties().entrySet().stream()
-                        .collect(Collectors.toMap(
-                                e -> String.valueOf(e.getKey()),
-                                e -> String.valueOf(e.getValue()),
-                                (prev, next) -> next,
-                                HashMap::new)))
-                .forEach(v ->
-                        v.getValue().ifPresent(s -> request.getUserProperties().setProperty(v.getKey(), s)));
+        NisseConfiguration configuration = SimpleNisseConfiguration.builder()
+                .withSystemProperties(request.getSystemProperties())
+                .withUserProperties(request.getUserProperties())
+                .withCurrentWorkingDirectory(Paths.get(request.getWorkingDirectory()))
+                .build();
+        String sessionId = "n-" + request.hashCode() + "-" + System.nanoTime();
+        NisseSession session = nisseManager.createSession(sessionId, configuration);
+        session.getAllProperties().forEach((k, v) -> request.getUserProperties().setProperty(k, v));
+        request.getUserProperties().setProperty(NisseConfiguration.PROPERTY_PREFIX + "sessionId", sessionId);
     }
 }

@@ -7,8 +7,6 @@
  */
 package eu.maveniverse.maven.nisse.source.propertyfile;
 
-import static eu.maveniverse.maven.nisse.core.Utils.mavenizeValue;
-
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.PropertySource;
 import java.io.IOException;
@@ -49,7 +47,7 @@ public class PropertyFilePropertySource implements PropertySource {
                     Properties prop = new Properties();
                     prop.load(stream);
                     for (final String key : prop.stringPropertyNames()) {
-                        properties.put(key, mavenizeValue(prop.getProperty(key)));
+                        properties.put(key, prop.getProperty(key));
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);

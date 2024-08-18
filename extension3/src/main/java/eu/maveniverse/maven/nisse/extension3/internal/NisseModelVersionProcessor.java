@@ -10,7 +10,6 @@ package eu.maveniverse.maven.nisse.extension3.internal;
 import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseSession;
-import java.util.Optional;
 import java.util.Properties;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -34,11 +33,7 @@ class NisseModelVersionProcessor implements ModelVersionProcessor {
     @Override
     public boolean isValidProperty(String property) {
         NisseSession nisseSession = nisseSessionProvider.get();
-        Optional<PropertyKey> propertyKey = nisseSession.getSessionPropertyKeys().stream()
-                .filter(p -> property.equals(p.getKey()))
-                .findFirst();
-        propertyKey.ifPresent(nisseSession::addSessionMandatoryPropertyKey);
-        return propertyKey.isPresent();
+        return nisseSession.getAllProperties().containsKey(property);
     }
 
     @Override

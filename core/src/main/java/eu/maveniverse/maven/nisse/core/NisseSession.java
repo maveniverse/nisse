@@ -7,6 +7,7 @@
  */
 package eu.maveniverse.maven.nisse.core;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 public interface NisseSession {
@@ -19,4 +20,9 @@ public interface NisseSession {
      * Mutable session data map, never {@code null}.
      */
     ConcurrentMap<String, Object> getData();
+
+    /**
+     * Returns map of Nisse properties.
+     */
+    Map<String, String> getAllProperties();
 }
