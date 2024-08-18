@@ -10,7 +10,6 @@ package eu.maveniverse.maven.nisse.extension3;
 import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseSession;
-import eu.maveniverse.maven.nisse.core.PropertyKey;
 import eu.maveniverse.maven.nisse.core.PropertyKeyManager;
 import java.util.ArrayList;
 import java.util.Collection;

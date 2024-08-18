@@ -7,19 +7,17 @@
  */
 package eu.maveniverse.maven.nisse.source.osdetector;
 
-import eu.maveniverse.maven.nisse.core.PropertyKey;
-import eu.maveniverse.maven.nisse.core.PropertyKeySource;
-import eu.maveniverse.maven.nisse.core.SimplePropertyKey;
+import eu.maveniverse.maven.nisse.core.NisseConfiguration;
+import eu.maveniverse.maven.nisse.core.PropertySource;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -33,19 +31,18 @@ import javax.inject.Singleton;
  * This source creates properties in constructor and keeps the forever.
  */
 @Singleton
-@Named(OsDetectorPropertyKeySource.NAME)
-public class OsDetectorPropertyKeySource implements PropertyKeySource {
+@Named(OsDetectorPropertySource.NAME)
+public class OsDetectorPropertySource implements PropertySource {
     public static final String NAME = "os";
 
-    private static final String PREFIX = NAME + ".";
-    private static final String DETECTED_NAME = PREFIX + "name";
-    private static final String DETECTED_ARCH = PREFIX + "arch";
-    private static final String DETECTED_BITNESS = PREFIX + "bitness";
-    private static final String DETECTED_VERSION = PREFIX + "version";
+    private static final String DETECTED_NAME = "name";
+    private static final String DETECTED_ARCH = "arch";
+    private static final String DETECTED_BITNESS = "bitness";
+    private static final String DETECTED_VERSION = "version";
     private static final String DETECTED_VERSION_MAJOR = DETECTED_VERSION + ".major";
     private static final String DETECTED_VERSION_MINOR = DETECTED_VERSION + ".minor";
-    private static final String DETECTED_CLASSIFIER = PREFIX + "classifier";
-    private static final String DETECTED_RELEASE = PREFIX + "release";
+    private static final String DETECTED_CLASSIFIER = "classifier";
+    private static final String DETECTED_RELEASE = "release";
     private static final String DETECTED_RELEASE_VERSION = DETECTED_RELEASE + ".version";
     private static final String DETECTED_RELEASE_LIKE_PREFIX = DETECTED_RELEASE + ".like.";
 
@@ -60,40 +57,39 @@ public class OsDetectorPropertyKeySource implements PropertyKeySource {
     private static final Pattern VERSION_REGEX = Pattern.compile("((\\d+)\\.(\\d+)).*");
     private static final Pattern REDHAT_MAJOR_VERSION_REGEX = Pattern.compile("(\\d+)");
 
-    private final List<PropertyKey> propertyKeys;
-
-    public OsDetectorPropertyKeySource() {
-        this.propertyKeys = detectOs();
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     @Override
-    public Collection<PropertyKey> providedKeys(Map<String, String> config) {
-        return propertyKeys;
+    public Map<String, String> getProperties(NisseConfiguration configuration) {
+        return detectOs(configuration.getSystemProperties());
     }
 
-    private List<PropertyKey> detectOs() {
-        ArrayList<PropertyKey> result = new ArrayList<>();
+    private static Map<String, String> detectOs(Map<String, String> systemProperties) {
+        HashMap<String, String> result = new HashMap<>();
 
-        final String osName = System.getProperty("os.name");
-        final String osArch = System.getProperty("os.arch");
-        final String osVersion = System.getProperty("os.version");
+        final String osName = systemProperties.get("os.name");
+        final String osArch = systemProperties.get("os.arch");
+        final String osVersion = systemProperties.get("os.version");
 
         final String detectedName = normalizeOs(osName);
         final String detectedArch = normalizeArch(osArch);
-        final int detectedBitness = determineBitness(detectedArch);
+        final int detectedBitness = determineBitness(systemProperties, detectedArch);
 
-        result.add(new SimplePropertyKey(this, DETECTED_NAME, detectedName));
-        result.add(new SimplePropertyKey(this, DETECTED_ARCH, detectedArch));
-        result.add(new SimplePropertyKey(this, DETECTED_BITNESS, "" + detectedBitness));
+        result.put(DETECTED_NAME, detectedName);
+        result.put(DETECTED_ARCH, detectedArch);
+        result.put(DETECTED_BITNESS, "" + detectedBitness);
 
         final Matcher versionMatcher = VERSION_REGEX.matcher(osVersion);
         if (versionMatcher.matches()) {
-            result.add(new SimplePropertyKey(this, DETECTED_VERSION, versionMatcher.group(1)));
-            result.add(new SimplePropertyKey(this, DETECTED_VERSION_MAJOR, versionMatcher.group(2)));
-            result.add(new SimplePropertyKey(this, DETECTED_VERSION_MINOR, versionMatcher.group(3)));
+            result.put(DETECTED_VERSION, versionMatcher.group(1));
+            result.put(DETECTED_VERSION_MAJOR, versionMatcher.group(2));
+            result.put(DETECTED_VERSION_MINOR, versionMatcher.group(3));
         }
 
-        final String failOnUnknownOS = System.getProperty("failOnUnknownOS");
+        final String failOnUnknownOS = systemProperties.get("failOnUnknownOS");
         if (!"false".equalsIgnoreCase(failOnUnknownOS)) {
             if (UNKNOWN.equals(detectedName)) {
                 throw new IllegalStateException("unknown os.name: " + osName);
@@ -109,20 +105,20 @@ public class OsDetectorPropertyKeySource implements PropertyKeySource {
         // For Linux systems, add additional properties regarding details of the OS.
         final LinuxRelease linuxRelease = "linux".equals(detectedName) ? getLinuxRelease() : null;
         if (linuxRelease != null) {
-            result.add(new SimplePropertyKey(this, DETECTED_RELEASE, linuxRelease.id));
+            result.put(DETECTED_RELEASE, linuxRelease.id);
             if (linuxRelease.version != null) {
-                result.add(new SimplePropertyKey(this, DETECTED_RELEASE_VERSION, linuxRelease.version));
+                result.put(DETECTED_RELEASE_VERSION, linuxRelease.version);
             }
 
             // Add properties for all systems that this OS is "like".
             for (String like : linuxRelease.like) {
                 final String propKey = DETECTED_RELEASE_LIKE_PREFIX + like;
-                result.add(new SimplePropertyKey(this, propKey, "true"));
+                result.put(propKey, "true");
             }
         }
-        result.add(new SimplePropertyKey(this, DETECTED_CLASSIFIER, detectedClassifierBuilder));
+        result.put(DETECTED_CLASSIFIER, detectedClassifierBuilder);
 
-        return Collections.unmodifiableList(result);
+        return Collections.unmodifiableMap(result);
     }
 
     private static String normalizeOs(String value) {
@@ -244,7 +240,7 @@ public class OsDetectorPropertyKeySource implements PropertyKeySource {
         return value.toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", "");
     }
 
-    private LinuxRelease getLinuxRelease() {
+    private static LinuxRelease getLinuxRelease() {
         // First, look for the os-release file.
         for (String osReleaseFileName : LINUX_OS_RELEASE_FILES) {
             LinuxRelease res = parseLinuxOsReleaseFile(osReleaseFileName);
@@ -261,7 +257,7 @@ public class OsDetectorPropertyKeySource implements PropertyKeySource {
      * Parses a file in the format of {@code /etc/os-release} and return a {@link LinuxRelease}
      * based on the {@code ID}, {@code ID_LIKE}, and {@code VERSION_ID} entries.
      */
-    private LinuxRelease parseLinuxOsReleaseFile(String fileName) {
+    private static LinuxRelease parseLinuxOsReleaseFile(String fileName) {
         try (BufferedReader reader = Files.newBufferedReader(Paths.get(fileName))) {
             String id = null;
             String version = null;
@@ -309,7 +305,7 @@ public class OsDetectorPropertyKeySource implements PropertyKeySource {
      * ID and like ["rhel", "fedora", ID]. Currently only supported for CentOS, Fedora, and RHEL.
      * Other variants will return {@code null}.
      */
-    private LinuxRelease parseLinuxRedhatReleaseFile(String fileName) {
+    private static LinuxRelease parseLinuxRedhatReleaseFile(String fileName) {
         try (BufferedReader reader = Files.newBufferedReader(Paths.get(fileName))) {
 
             // There is only a single line in this file.
@@ -351,16 +347,16 @@ public class OsDetectorPropertyKeySource implements PropertyKeySource {
         return value.trim().replace("\"", "");
     }
 
-    private int determineBitness(String architecture) {
+    private static int determineBitness(Map<String, String> systemProperties, String architecture) {
         // try the widely adopted sun specification first.
-        String bitness = System.getProperty("sun.arch.data.model", "");
+        String bitness = systemProperties.getOrDefault("sun.arch.data.model", "");
 
         if (!bitness.isEmpty() && bitness.matches("[0-9]+")) {
             return Integer.parseInt(bitness, 10);
         }
 
         // bitness from sun.arch.data.model cannot be used. Try the IBM specification.
-        bitness = System.getProperty("com.ibm.vm.bitmode", "");
+        bitness = systemProperties.getOrDefault("com.ibm.vm.bitmode", "");
 
         if (!bitness.isEmpty() && bitness.matches("[0-9]+")) {
             return Integer.parseInt(bitness, 10);

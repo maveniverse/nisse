@@ -1,5 +1,6 @@
 package eu.maveniverse.maven.nisse.source.propertyfile;
 
+import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -7,7 +8,7 @@ import java.util.HashMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class PropertyFilePropertyKeySourceTest {
+public class PropertyFilePropertySourceTest {
     @Test
     void smoke(@TempDir Path tempDir) throws Exception {
         Path propertyFile = tempDir.resolve("property.properties");
@@ -15,13 +16,15 @@ public class PropertyFilePropertyKeySourceTest {
         try {
             HashMap<String, String> conf = new HashMap<>();
             conf.put(
-                    PropertyFilePropertyKeySource.FILE_NAME,
+                    PropertyFilePropertySource.FILE_NAME,
                     propertyFile.toAbsolutePath().toString());
-            new PropertyFilePropertyKeySource()
-                    .providedKeys(conf)
-                    .forEach(k -> System.out.println(k + " = " + k.getValue().orElse("")));
+            new PropertyFilePropertySource()
+                    .getProperties(SimpleNisseConfiguration.builder()
+                            .withUserProperties(conf)
+                            .build())
+                    .forEach((k, v) -> System.out.println(k + " = " + v));
         } finally {
-            System.clearProperty(PropertyFilePropertyKeySource.FILE_NAME);
+            System.clearProperty(PropertyFilePropertySource.FILE_NAME);
         }
     }
 }

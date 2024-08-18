@@ -7,12 +7,16 @@
  */
 package eu.maveniverse.maven.nisse.core;
 
-import java.util.Collection;
+import java.util.concurrent.ConcurrentMap;
 
 public interface NisseSession {
-    Collection<PropertyKey> getSessionPropertyKeys();
+    /**
+     * Returns the session configuration, never {@code null}.
+     */
+    NisseConfiguration getConfiguration();
 
-    Collection<PropertyKey> getSessionMandatoryPropertyKeys();
-
-    void addSessionMandatoryPropertyKey(PropertyKey key);
+    /**
+     * Mutable session data map, never {@code null}.
+     */
+    ConcurrentMap<String, Object> getData();
 }

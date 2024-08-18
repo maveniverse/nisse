@@ -9,13 +9,11 @@ package eu.maveniverse.maven.nisse.core.internal;
 
 import static java.util.Objects.requireNonNull;
 
-import eu.maveniverse.maven.nisse.core.PropertyKey;
+import eu.maveniverse.maven.nisse.core.NisseSession;
 import eu.maveniverse.maven.nisse.core.PropertyKeyManager;
-import eu.maveniverse.maven.nisse.core.PropertyKeySource;
-import java.util.Collection;
+import eu.maveniverse.maven.nisse.core.PropertySource;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -24,21 +22,17 @@ import javax.inject.Singleton;
 @Singleton
 @Named
 class DefaultPropertyKeyManager implements PropertyKeyManager {
-    private final List<PropertyKeySource> sources;
+    private final List<PropertySource> sources;
 
     @Inject
-    public DefaultPropertyKeyManager(List<PropertyKeySource> sources) {
+    public DefaultPropertyKeyManager(List<PropertySource> sources) {
         this.sources = requireNonNull(sources, "sources");
     }
 
     @Override
-    public Collection<PropertyKey> allKeys(Map<String, String> config) {
-        return sources.stream().flatMap(s -> s.providedKeys(config).stream()).collect(Collectors.toList());
-    }
-
-    @Override
-    public Optional<PropertyKey> lookupKey(Map<String, String> config, String key) {
-        requireNonNull(key, "key");
-        return allKeys(config).stream().filter(k -> key.equals(k.getKey())).findFirst();
+    public Map<String, String> allProperties(NisseSession session) {
+        return sources.stream()
+                .flatMap(s -> s.getProperties(session.getConfiguration()).entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }

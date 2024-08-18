@@ -7,15 +7,13 @@
  */
 package eu.maveniverse.maven.nisse.source.jgit;
 
-import eu.maveniverse.maven.nisse.core.PropertyKey;
-import eu.maveniverse.maven.nisse.core.PropertyKeySource;
-import eu.maveniverse.maven.nisse.core.SimplePropertyKey;
+import eu.maveniverse.maven.nisse.core.NisseConfiguration;
+import eu.maveniverse.maven.nisse.core.PropertySource;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -28,22 +26,26 @@ import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
  * A source using JGit to get some Git info.
  */
 @Singleton
-@Named(JGitPropertyKeySource.NAME)
-public class JGitPropertyKeySource implements PropertyKeySource {
+@Named(JGitPropertySource.NAME)
+public class JGitPropertySource implements PropertySource {
     public static final String NAME = "jgit";
 
-    private static final String PREFIX = NAME + ".";
-    private static final String JGIT_COMMIT = PREFIX + "commit";
-    private static final String JGIT_DATE = PREFIX + "date";
-    private static final String JGIT_AUTHOR = PREFIX + "author";
-    private static final String JGIT_COMMITTER = PREFIX + "committer";
+    private static final String JGIT_COMMIT = "commit";
+    private static final String JGIT_DATE = "date";
+    private static final String JGIT_AUTHOR = "author";
+    private static final String JGIT_COMMITTER = "committer";
 
     @Override
-    public Collection<PropertyKey> providedKeys(Map<String, String> config) {
-        ArrayList<PropertyKey> result = new ArrayList<>();
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
+    public Map<String, String> getProperties(NisseConfiguration configuration) {
+        HashMap<String, String> result = new HashMap<>();
         try (Repository repository = new FileRepositoryBuilder()
                 .readEnvironment() // scan environment GIT_* variables
-                .findGitDir() // scan up the file system tree
+                .findGitDir(configuration.getCurrentWorkingDirectory().toFile()) // scan up the file system tree
                 .build()) {
 
             if (repository.getDirectory() != null) {
@@ -54,9 +56,8 @@ public class JGitPropertyKeySource implements PropertyKeySource {
                         .iterator()
                         .next();
 
-                result.add(new SimplePropertyKey(this, JGIT_COMMIT, lastCommit.getName()));
-                result.add(new SimplePropertyKey(
-                        this,
+                result.put(JGIT_COMMIT, lastCommit.getName());
+                result.put(
                         JGIT_DATE,
                         ZonedDateTime.ofInstant(
                                         Instant.ofEpochSecond(lastCommit.getCommitTime()),
@@ -64,19 +65,17 @@ public class JGitPropertyKeySource implements PropertyKeySource {
                                                 .getAuthorIdent()
                                                 .getTimeZone()
                                                 .toZoneId())
-                                .format(DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z"))));
-                result.add(new SimplePropertyKey(
-                        this,
+                                .format(DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z")));
+                result.put(
                         JGIT_COMMITTER,
-                        lastCommit.getCommitterIdent().toExternalString().split(">")[0] + ">"));
-                result.add(new SimplePropertyKey(
-                        this,
+                        lastCommit.getCommitterIdent().toExternalString().split(">")[0] + ">");
+                result.put(
                         JGIT_AUTHOR,
-                        lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">"));
+                        lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
             }
         } catch (Exception e) {
             // ignore
         }
-        return Collections.unmodifiableList(result);
+        return Collections.unmodifiableMap(result);
     }
 }

@@ -7,8 +7,14 @@
  */
 package eu.maveniverse.maven.nisse.core;
 
-public class Nisse {
-    private Nisse() {}
-
-    public static final String PROPERTY_PREFIX = "nisse.";
+public class Utils {
+    /**
+     * Helper method to "mavenize" property value.
+     */
+    public static String mavenizeValue(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return "true";
+        }
+        return value;
+    }
 }
