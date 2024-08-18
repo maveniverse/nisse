@@ -200,4 +200,48 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>run-its</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-invoker-plugin</artifactId>
+            <configuration>
+              <settingsFile>src/it/settings.xml</settingsFile>
+              <pomIncludes>
+                <pomInclude>*</pomInclude>
+              </pomIncludes>
+              <goals>
+                <goal>clean</goal>
+                <goal>install</goal>
+              </goals>
+            </configuration>
+            <executions>
+              <execution>
+                <id>integration-test</id>
+                <phase>none</phase>
+              </execution>
+              <execution>
+                <id>invoker-install</id>
+                <goals>
+                  <goal>install</goal>
+                </goals>
+                <phase>integration-test</phase>
+              </execution>
+              <execution>
+                <id>invoker-run</id>
+                <goals>
+                  <goal>run</goal>
+                </goals>
+                <phase>integration-test</phase>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
