@@ -26,6 +26,7 @@
   <modules>
     <module>file-source</module>
     <module>jgit-source</module>
+    <module>mvn-source</module>
     <module>os-source</module>
   </modules>
 </project>

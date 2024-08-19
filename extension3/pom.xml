@@ -48,6 +48,10 @@
     </dependency>
     <dependency>
       <groupId>eu.maveniverse.maven.nisse.sources</groupId>
+      <artifactId>mvn-source</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>eu.maveniverse.maven.nisse.sources</groupId>
       <artifactId>os-source</artifactId>
     </dependency>
 
