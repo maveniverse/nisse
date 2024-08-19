@@ -12,28 +12,24 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>eu.maveniverse.maven.nisse</groupId>
-    <artifactId>nisse</artifactId>
+    <groupId>eu.maveniverse.maven.nisse.sources</groupId>
+    <artifactId>sources</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>core</artifactId>
+  <artifactId>file-source</artifactId>
 
   <name>${project.groupId}:${project.artifactId}</name>
 
   <dependencies>
-    <!-- Maven -->
+    <!-- Nisse -->
     <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-api</artifactId>
+      <groupId>eu.maveniverse.maven.nisse</groupId>
+      <artifactId>core</artifactId>
     </dependency>
     <dependency>
       <groupId>javax.inject</groupId>
       <artifactId>javax.inject</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.sisu</groupId>
-      <artifactId>org.eclipse.sisu.inject</artifactId>
     </dependency>
 
     <!-- Test -->

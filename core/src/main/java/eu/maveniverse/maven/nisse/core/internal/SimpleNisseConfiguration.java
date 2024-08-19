@@ -10,6 +10,7 @@ package eu.maveniverse.maven.nisse.core.internal;
 import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
+import eu.maveniverse.maven.nisse.core.PropertySource;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -53,6 +54,13 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
     @Override
     public Path getCurrentWorkingDirectory() {
         return currentWorkingDirectory;
+    }
+
+    @Override
+    public boolean isPropertySourceActive(PropertySource source) {
+        requireNonNull(source, "source");
+        String key = SOURCE_PREFIX + source.getName() + ".active";
+        return Boolean.parseBoolean(getConfiguration().getOrDefault(key, "true"));
     }
 
     public static Builder builder() {

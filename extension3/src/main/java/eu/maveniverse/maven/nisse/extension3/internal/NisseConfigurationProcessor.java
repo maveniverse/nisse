@@ -9,11 +9,11 @@ package eu.maveniverse.maven.nisse.extension3.internal;
 
 import static java.util.Objects.requireNonNull;
 
-import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
-import eu.maveniverse.maven.nisse.core.NisseSession;
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
 import java.nio.file.Paths;
+import java.util.Map;
+import java.util.Properties;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -21,11 +21,14 @@ import org.apache.maven.cli.CliRequest;
 import org.apache.maven.cli.configuration.ConfigurationProcessor;
 import org.apache.maven.cli.configuration.SettingsXmlConfigurationProcessor;
 import org.eclipse.sisu.Priority;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Singleton
 @Named
 @Priority(200)
-public class NisseConfigurationProcessor implements ConfigurationProcessor {
+final class NisseConfigurationProcessor implements ConfigurationProcessor {
+    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final NisseManager nisseManager;
     private final SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor;
 
@@ -41,15 +44,18 @@ public class NisseConfigurationProcessor implements ConfigurationProcessor {
     public void process(CliRequest request) throws Exception {
         settingsXmlConfigurationProcessor.process(request);
 
-        // push what we have into user properties
-        NisseConfiguration configuration = SimpleNisseConfiguration.builder()
+        // create properties and push what we got into CLI user properties
+        Properties userProperties = request.getUserProperties();
+        Map<String, String> nisseProperties = nisseManager.createProperties(SimpleNisseConfiguration.builder()
                 .withSystemProperties(request.getSystemProperties())
                 .withUserProperties(request.getUserProperties())
                 .withCurrentWorkingDirectory(Paths.get(request.getWorkingDirectory()))
-                .build();
-        String sessionId = "n-" + request.hashCode() + "-" + System.nanoTime();
-        NisseSession session = nisseManager.createSession(sessionId, configuration);
-        session.getAllProperties().forEach((k, v) -> request.getUserProperties().setProperty(k, v));
-        request.getUserProperties().setProperty(NisseConfiguration.PROPERTY_PREFIX + "sessionId", sessionId);
+                .build());
+        logger.info("Nisse injecting {} properties into User Properties", nisseProperties.size());
+        nisseProperties.forEach((k, v) -> {
+            if (!userProperties.containsKey(k)) {
+                request.getUserProperties().setProperty(k, v);
+            }
+        });
     }
 }

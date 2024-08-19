@@ -17,6 +17,11 @@ public interface NisseConfiguration {
     String PROPERTY_PREFIX = "nisse.";
 
     /**
+     * The default Nisse source config prefix.
+     */
+    String SOURCE_PREFIX = PROPERTY_PREFIX + "source.";
+
+    /**
      * Returns immutable map of session effective system properties, never {@code null}.
      */
     Map<String, String> getSystemProperties();
@@ -28,11 +33,21 @@ public interface NisseConfiguration {
 
     /**
      * Returns immutable map of session effective configuration, never {@code null}.
+     * <p>
+     * Note: in Maven this is systemProperties + userProperties flattened in this order.
      */
     Map<String, String> getConfiguration();
 
     /**
      * Returns the path that should be considered "current working directory", never {@code null}.
+     * <p>
+     * Note: in Maven this may not be same as "user.dir" system property!
      */
     Path getCurrentWorkingDirectory();
+
+    /**
+     * Returns {@code true} if property source is active (by default they are active). To disable a source use
+     * {@code "nisse.$source.active=false"} property.
+     */
+    boolean isPropertySourceActive(PropertySource source);
 }

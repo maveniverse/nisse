@@ -69,9 +69,6 @@
     <requireBuildtimeMavenVersion.version>[3.9.8,)</requireBuildtimeMavenVersion.version>
     <requireRuntimeMavenVersion.version>[3.6.3,)</requireRuntimeMavenVersion.version>
 
-    <!-- Dependency versions (all Maven version bound) -->
-    <version.maven>3.9.8</version.maven>
-    <version.resolver>1.9.20</version.resolver>
     <version.slf4j>1.7.36</version.slf4j>
   </properties>
 
@@ -95,7 +92,7 @@
       </dependency>
       <dependency>
         <groupId>eu.maveniverse.maven.nisse.sources</groupId>
-        <artifactId>property-file-source</artifactId>
+        <artifactId>file-source</artifactId>
         <version>${project.version}</version>
       </dependency>
 
@@ -109,43 +106,6 @@
         <groupId>org.slf4j</groupId>
         <artifactId>slf4j-simple</artifactId>
         <version>${version.slf4j}</version>
-      </dependency>
-
-      <!-- Resolver + Maven -->
-      <dependency>
-        <groupId>org.apache.maven.resolver</groupId>
-        <artifactId>maven-resolver-api</artifactId>
-        <version>${version.resolver}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.maven.resolver</groupId>
-        <artifactId>maven-resolver-util</artifactId>
-        <version>${version.resolver}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.maven</groupId>
-        <artifactId>maven-core</artifactId>
-        <version>${version.maven}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.maven</groupId>
-        <artifactId>maven-embedder</artifactId>
-        <version>${version.maven}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.maven</groupId>
-        <artifactId>maven-model</artifactId>
-        <version>${version.maven}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.maven</groupId>
-        <artifactId>maven-model-builder</artifactId>
-        <version>${version.maven}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.codehaus.plexus</groupId>
-        <artifactId>plexus-utils</artifactId>
-        <version>3.5.1</version>
       </dependency>
 
       <!-- DI -->
@@ -200,48 +160,4 @@
       </plugin>
     </plugins>
   </build>
-
-  <profiles>
-    <profile>
-      <id>run-its</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-invoker-plugin</artifactId>
-            <configuration>
-              <settingsFile>src/it/settings.xml</settingsFile>
-              <pomIncludes>
-                <pomInclude>*</pomInclude>
-              </pomIncludes>
-              <goals>
-                <goal>clean</goal>
-                <goal>install</goal>
-              </goals>
-            </configuration>
-            <executions>
-              <execution>
-                <id>integration-test</id>
-                <phase>none</phase>
-              </execution>
-              <execution>
-                <id>invoker-install</id>
-                <goals>
-                  <goal>install</goal>
-                </goals>
-                <phase>integration-test</phase>
-              </execution>
-              <execution>
-                <id>invoker-run</id>
-                <goals>
-                  <goal>run</goal>
-                </goals>
-                <phase>integration-test</phase>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-  </profiles>
 </project>

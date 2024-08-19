@@ -7,13 +7,15 @@
  */
 package eu.maveniverse.maven.nisse.core;
 
+import java.util.Map;
+
 /**
- * A property key source, that provides all the supported keys, and is able to evaluate them.
+ * Nisse manager, that manages sources.
  */
 public interface NisseManager {
-    NisseSession createSession(String sessionId, NisseConfiguration configuration);
-
-    NisseSession retrieveSession(String sessionId);
-
-    NisseSession finishSession(String sessionId);
+    /**
+     * Creates "final" map of properties contributed from {@link PropertySource} flattened (by source priorities).
+     * Keys are also "namespaced" with prefix {@code "nisse.$source."}. Never returns {@code null}.
+     */
+    Map<String, String> createProperties(NisseConfiguration configuration);
 }

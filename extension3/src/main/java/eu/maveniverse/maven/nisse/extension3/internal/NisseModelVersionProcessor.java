@@ -9,43 +9,51 @@ package eu.maveniverse.maven.nisse.extension3.internal;
 
 import static java.util.Objects.requireNonNull;
 
-import eu.maveniverse.maven.nisse.core.NisseSession;
+import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import java.util.Properties;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.building.ModelBuildingRequest;
 import org.apache.maven.model.interpolation.ModelVersionProcessor;
 import org.eclipse.sisu.Priority;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Singleton
 @Named
 @Priority(200)
-class NisseModelVersionProcessor implements ModelVersionProcessor {
-    private final Provider<NisseSession> nisseSessionProvider;
+final class NisseModelVersionProcessor implements ModelVersionProcessor {
+    private final Logger logger = LoggerFactory.getLogger(getClass());
+    private final Provider<MavenSession> sessionProvider;
+    private final NissePropertyInliner inliner;
 
     @Inject
-    public NisseModelVersionProcessor(Provider<NisseSession> nisseSessionProvider) {
-        this.nisseSessionProvider = requireNonNull(nisseSessionProvider, "nisseSessionProvider");
+    public NisseModelVersionProcessor(Provider<MavenSession> sessionProvider, NissePropertyInliner inliner) {
+        this.sessionProvider = requireNonNull(sessionProvider, "sessionProvider");
+        this.inliner = requireNonNull(inliner, "inliner");
     }
 
     @Override
     public boolean isValidProperty(String property) {
-        NisseSession nisseSession = nisseSessionProvider.get();
-        return nisseSession.getAllProperties().containsKey(property);
+        MavenSession session = this.sessionProvider.get();
+        boolean valid = property.startsWith(NisseConfiguration.PROPERTY_PREFIX)
+                && session.getRequest().getUserProperties().containsKey(property);
+        if (valid) {
+            logger.info("Nisse property {} used as version; needs inlining", property);
+            inliner.inlinedKeys(session).add(property);
+        }
+        return valid;
     }
 
     @Override
     public void overwriteModelProperties(Properties modelProperties, ModelBuildingRequest request) {
-        NisseSession nisseSession = nisseSessionProvider.get();
-        for (PropertyKey mandatoryKey : nisseSession.getSessionMandatoryPropertyKeys()) {
-            if (mandatoryKey.getValue().isPresent()) {
-                modelProperties.setProperty(
-                        mandatoryKey.getKey(), mandatoryKey.getValue().get());
-            } else {
-                throw new IllegalStateException("Mandatory property " + mandatoryKey.getKey() + " have no value");
-            }
+        MavenSession session = this.sessionProvider.get();
+        for (String inlinedKey : inliner.inlinedKeys(session)) {
+            modelProperties.setProperty(
+                    inlinedKey, session.getRequest().getUserProperties().getProperty(inlinedKey));
         }
     }
 }
