@@ -35,7 +35,7 @@ class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
                 .build();
         for (String inlinedKey : configuration.getInlinedPropertyKeys()) {
             if (inliner.inlinedKeys(session).add(inlinedKey)) {
-                logger.info("Nisse property {} asked for inlining", inlinedKey);
+                logger.info("Nisse property {} configured for inlining", inlinedKey);
             }
         }
         try {

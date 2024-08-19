@@ -19,14 +19,11 @@ import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.building.ModelBuildingRequest;
 import org.apache.maven.model.interpolation.ModelVersionProcessor;
 import org.eclipse.sisu.Priority;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Singleton
 @Named
 @Priority(200)
 final class NisseModelVersionProcessor implements ModelVersionProcessor {
-    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final Provider<MavenSession> sessionProvider;
     private final NissePropertyInliner inliner;
 
@@ -42,9 +39,7 @@ final class NisseModelVersionProcessor implements ModelVersionProcessor {
         boolean valid = property.startsWith(NisseConfiguration.PROPERTY_PREFIX)
                 && session.getRequest().getUserProperties().containsKey(property);
         if (valid) {
-            if (inliner.inlinedKeys(session).add(property)) {
-                logger.info("Nisse property {} used as version; needs inlining", property);
-            }
+            inliner.inlinedKeys(session).add(property);
         }
         return valid;
     }

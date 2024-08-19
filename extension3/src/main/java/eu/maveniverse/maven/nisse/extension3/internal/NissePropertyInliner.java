@@ -27,9 +27,6 @@ import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.maven.execution.MavenSession;
-import org.apache.maven.model.InputSource;
-import org.apache.maven.model.Model;
-import org.apache.maven.model.building.FileModelSource;
 import org.apache.maven.model.building.ModelProcessor;
 import org.apache.maven.project.MavenProject;
 import org.slf4j.Logger;
@@ -64,24 +61,19 @@ final class NissePropertyInliner {
             }
             logger.info("Nisse inlining following properties:");
             for (Map.Entry<String, String> entry : inlinedProperties.entrySet()) {
-                logger.info("* {}={}", entry.getKey(), entry.getValue());
+                logger.info(" * {}={}", entry.getKey(), entry.getValue());
             }
+            logger.info("Checking POMs for inlining:");
             for (MavenProject mavenProject : mavenProjects) {
                 Path pomPath = mavenProject.getFile().toPath();
-                Model model = readProjectModel(pomPath);
-                for (Map.Entry<String, String> property : inlinedProperties.entrySet()) {
-                    String keyPlaceholder = property.getKey();
-                    if (keyPlaceholder.equals(model.getVersion())
-                            || (model.getParent() != null
-                                    && keyPlaceholder.equals(model.getParent().getVersion()))) {
-                        // needs rewrite
-                        logger.info(" * {} needs inlining of {}", mavenProject.getId(), keyPlaceholder);
-                        Path inlinedPomPath = Paths.get(mavenProject.getBuild().getDirectory())
-                                .resolve("inlined-" + pomPath.getFileName());
-                        Files.createDirectories(inlinedPomPath.getParent());
-                        inline(pomPath, inlinedPomPath, inlinedProperties);
-                        mavenProject.setFile(inlinedPomPath.toFile());
-                    }
+                if (isAnyKeyPresent(inlinedProperties, pomPath)) {
+                    // needs rewrite
+                    logger.info(" * {}:{} needs inlining", mavenProject.getGroupId(), mavenProject.getArtifactId());
+                    Path inlinedPomPath = Paths.get(mavenProject.getBuild().getDirectory())
+                            .resolve("inlined-" + pomPath.getFileName());
+                    Files.createDirectories(inlinedPomPath.getParent());
+                    inline(pomPath, inlinedPomPath, inlinedProperties);
+                    mavenProject.setFile(inlinedPomPath.toFile());
                 }
             }
         } else {
@@ -89,13 +81,17 @@ final class NissePropertyInliner {
         }
     }
 
-    private Model readProjectModel(Path pom) throws IOException {
-        FileModelSource modelSource = new FileModelSource(pom.toFile());
-        Map<String, Object> options = new HashMap<>();
-        options.put(ModelProcessor.IS_STRICT, true);
-        options.put(ModelProcessor.INPUT_SOURCE, new InputSource());
-        options.put(ModelProcessor.SOURCE, modelSource);
-        return modelProcessor.read(modelSource.getInputStream(), options);
+    private boolean isAnyKeyPresent(Map<String, String> inlinedProperties, Path file) throws IOException {
+        try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
+            return lines.anyMatch(l -> {
+                for (String placeholder : inlinedProperties.keySet()) {
+                    if (l.contains(placeholder)) {
+                        return true;
+                    }
+                }
+                return false;
+            });
+        }
     }
 
     private void inline(Path sourcePom, Path targetPom, Map<String, String> inlinedProperties) throws IOException {

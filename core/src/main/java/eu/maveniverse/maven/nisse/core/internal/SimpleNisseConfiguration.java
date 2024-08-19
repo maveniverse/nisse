@@ -67,7 +67,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
 
     @Override
     public Collection<String> getInlinedPropertyKeys() {
-        String key = SOURCE_PREFIX + ".inlinedKeys";
+        String key = SOURCE_PREFIX + "inlinedKeys";
         String value = getConfiguration().get(key);
         if (value != null) {
             return Stream.of(value.split(",", -1))

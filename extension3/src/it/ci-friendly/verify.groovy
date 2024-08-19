@@ -4,9 +4,10 @@ import java.util.regex.Pattern
 File buildLog = new File( basedir, 'build.log' )
 assert buildLog.exists()
 String buildLogString = buildLog.text
-assert buildLogString.contains ( 'Nisse property nisse.jgit.commit used as version; needs inlining')
 
 String placeholder = '${nisse.jgit.commit}'
+assert buildLogString.contains (placeholder)
+
 String search = placeholder + "="
 int commitHashStart = buildLogString.indexOf(search) + search.length()
 assert commitHashStart > -1
