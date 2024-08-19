@@ -14,3 +14,28 @@ Currently there are 4 sources just to showcase things:
 * os-source: heavily inspired by https://github.com/trustin/os-maven-plugin (and annoyed that user does not maintain it, so code is not reusable nor works with Maven4) 
 
 Look into ITs for examples.
+
+## Usage
+
+Add this to your `.mvn/extensions.xml` file:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<extensions>
+    <extension>
+        <groupId>eu.maveniverse.maven.nisse</groupId>
+        <artifactId>extension3</artifactId>
+        <version>@project.version@</version>
+    </extension>
+</extensions>
+```
+
+And then you can inspect what is being added to user properties by running Toolbox `dump`:
+
+```
+$ mvn eu.maveniverse.maven.plugins:toolbox:dump -Dverbose -N
+```
+
+Look for "USER PROPERTIES" section. Nisse injected some properties for you as they were user properties.
+Moreover, you are free to use them as version (ie. `<version>${nisse.jgit.commit}</version>`) and look
+what happens. Oh, and just install/deploy as usual, no need for any mumbo-jumbo.
