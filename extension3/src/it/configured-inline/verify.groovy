@@ -4,7 +4,7 @@ import java.util.regex.Pattern
 File buildLog = new File( basedir, 'build.log' )
 assert buildLog.exists()
 String buildLogString = buildLog.text
-assert buildLogString.contains ('Nisse injecting 17 properties into User Properties')
+assert buildLogString.contains ('Nisse injecting 3 properties into User Properties')
 
 String[] paths = new String[]{
     "eu/maveniverse/maven/nisse/it/configured-inline/configured-inline/1.0/configured-inline-1.0.pom",
