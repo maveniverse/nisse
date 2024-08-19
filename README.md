@@ -25,7 +25,7 @@ Add this to your `.mvn/extensions.xml` file:
     <extension>
         <groupId>eu.maveniverse.maven.nisse</groupId>
         <artifactId>extension3</artifactId>
-        <version>@project.version@</version>
+        <version>0.1.0</version>
     </extension>
 </extensions>
 ```
