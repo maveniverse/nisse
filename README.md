@@ -17,7 +17,7 @@ Look into ITs for examples.
 
 ## Usage
 
-Add this to your `.mvn/extensions.xml` file:
+Maven 3.9.x: Add this to your `.mvn/extensions.xml` file:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -39,3 +39,5 @@ $ mvn eu.maveniverse.maven.plugins:toolbox:dump -Dverbose -N
 Look for "USER PROPERTIES" section. Nisse injected some properties for you as they were user properties.
 Moreover, you are free to use them as version (ie. `<version>${nisse.jgit.commit}</version>`) and look
 what happens. Oh, and just install/deploy as usual, no need for any mumbo-jumbo.
+
+Maven 4.x: Support is on the way... (keep eye on `extension4`).
