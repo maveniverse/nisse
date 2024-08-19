@@ -5,7 +5,7 @@
  * which accompanies this distribution, and is available at
  * https://www.eclipse.org/legal/epl-v20.html
  */
-package eu.maveniverse.maven.nisse.extension3.internal;
+package eu.maveniverse.maven.nisse.extension4.internal;
 
 import static java.util.Objects.requireNonNull;
 
