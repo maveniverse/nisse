@@ -7,8 +7,6 @@
  */
 package eu.maveniverse.maven.nisse.extension3.internal;
 
-import static java.util.Objects.requireNonNull;
-
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -23,29 +21,21 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.maven.execution.MavenSession;
-import org.apache.maven.model.building.ModelProcessor;
 import org.apache.maven.project.MavenProject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Singleton
 @Named
-final class NissePropertyInliner {
+public final class NissePropertyInliner {
     private static final String NEEDS_INLINING_LIST = NisseConfiguration.PROPERTY_PREFIX + "needs-inlining";
     private final Logger logger = LoggerFactory.getLogger(getClass());
-    private final ModelProcessor modelProcessor;
-
-    @Inject
-    public NissePropertyInliner(ModelProcessor modelProcessor) {
-        this.modelProcessor = requireNonNull(modelProcessor, "modelProcessor");
-    }
 
     @SuppressWarnings("unchecked")
-    Collection<String> inlinedKeys(MavenSession session) {
+    public Collection<String> inlinedKeys(MavenSession session) {
         return (Set<String>) session.getRepositorySession()
                 .getData()
                 .computeIfAbsent(NissePropertyInliner.NEEDS_INLINING_LIST, ConcurrentHashMap::newKeySet);
