@@ -9,6 +9,7 @@ package eu.maveniverse.maven.nisse.extension3.internal;
 
 import static java.util.Objects.requireNonNull;
 
+import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
 import java.nio.file.Paths;
@@ -30,12 +31,16 @@ import org.slf4j.LoggerFactory;
 final class NisseConfigurationProcessor implements ConfigurationProcessor {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final NisseManager nisseManager;
+    private final NissePropertyInliner inliner;
     private final SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor;
 
     @Inject
     public NisseConfigurationProcessor(
-            NisseManager nisseManager, SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor) {
-        this.nisseManager = requireNonNull(nisseManager, "propertyKeyManager");
+            NisseManager nisseManager,
+            NissePropertyInliner inliner,
+            SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor) {
+        this.nisseManager = requireNonNull(nisseManager, "nisseManager");
+        this.inliner = requireNonNull(inliner, "inliner");
         this.settingsXmlConfigurationProcessor =
                 requireNonNull(settingsXmlConfigurationProcessor, "settingsXmlConfigurationProcessor");
     }
@@ -46,11 +51,12 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
 
         // create properties and push what we got into CLI user properties
         Properties userProperties = request.getUserProperties();
-        Map<String, String> nisseProperties = nisseManager.createProperties(SimpleNisseConfiguration.builder()
+        NisseConfiguration configuration = SimpleNisseConfiguration.builder()
                 .withSystemProperties(request.getSystemProperties())
                 .withUserProperties(request.getUserProperties())
                 .withCurrentWorkingDirectory(Paths.get(request.getWorkingDirectory()))
-                .build());
+                .build();
+        Map<String, String> nisseProperties = nisseManager.createProperties(configuration);
         logger.info("Nisse injecting {} properties into User Properties", nisseProperties.size());
         nisseProperties.forEach((k, v) -> {
             if (!userProperties.containsKey(k)) {

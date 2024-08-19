@@ -13,11 +13,13 @@ import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.PropertySource;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class SimpleNisseConfiguration implements NisseConfiguration {
     private final Map<String, String> systemProperties;
@@ -61,6 +63,18 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
         requireNonNull(source, "source");
         String key = SOURCE_PREFIX + source.getName() + ".active";
         return Boolean.parseBoolean(getConfiguration().getOrDefault(key, "true"));
+    }
+
+    @Override
+    public Collection<String> getInlinedPropertyKeys() {
+        String key = SOURCE_PREFIX + ".inlinedKeys";
+        String value = getConfiguration().get(key);
+        if (value != null) {
+            return Stream.of(value.split(",", -1))
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .collect(Collectors.toList());
+        }
+        return Collections.emptyList();
     }
 
     public static Builder builder() {

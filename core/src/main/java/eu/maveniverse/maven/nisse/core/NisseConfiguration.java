@@ -8,6 +8,7 @@
 package eu.maveniverse.maven.nisse.core;
 
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Map;
 
 public interface NisseConfiguration {
@@ -47,7 +48,13 @@ public interface NisseConfiguration {
 
     /**
      * Returns {@code true} if property source is active (by default they are active). To disable a source use
-     * {@code "nisse.$source.active=false"} property.
+     * {@code "nisse.source.$source.active=false"} property (defaults to {@code true}).
      */
     boolean isPropertySourceActive(PropertySource source);
+
+    /**
+     * Returns {@code true} if property source is active (by default they are active). To disable a source use
+     * {@code "nisse.source.inlinedKeys=key1,key2"} property (defaults to empty collection).
+     */
+    Collection<String> getInlinedPropertyKeys();
 }

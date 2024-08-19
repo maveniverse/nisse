@@ -42,8 +42,9 @@ final class NisseModelVersionProcessor implements ModelVersionProcessor {
         boolean valid = property.startsWith(NisseConfiguration.PROPERTY_PREFIX)
                 && session.getRequest().getUserProperties().containsKey(property);
         if (valid) {
-            logger.info("Nisse property {} used as version; needs inlining", property);
-            inliner.inlinedKeys(session).add(property);
+            if (inliner.inlinedKeys(session).add(property)) {
+                logger.info("Nisse property {} used as version; needs inlining", property);
+            }
         }
         return valid;
     }

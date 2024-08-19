@@ -11,14 +11,18 @@ import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -45,26 +49,38 @@ final class NissePropertyInliner {
 
     @SuppressWarnings("unchecked")
     Collection<String> inlinedKeys(MavenSession session) {
-        return (CopyOnWriteArrayList<String>) session.getRepositorySession()
+        return (Set<String>) session.getRepositorySession()
                 .getData()
-                .computeIfAbsent(NissePropertyInliner.NEEDS_INLINING_LIST, CopyOnWriteArrayList::new);
+                .computeIfAbsent(NissePropertyInliner.NEEDS_INLINING_LIST, ConcurrentHashMap::newKeySet);
     }
 
     void mayInlinePom(MavenSession session, Collection<MavenProject> mavenProjects) throws IOException {
         Collection<String> inlinedKeys = inlinedKeys(session);
         if (!inlinedKeys.isEmpty()) {
-            logger.info("Nisse inlining properties: {}", inlinedKeys);
+            Map<String, String> inlinedProperties = new HashMap<>();
+            for (String inlinedKey : inlinedKeys) {
+                inlinedProperties.put(
+                        "${" + inlinedKey + "}", session.getUserProperties().getProperty(inlinedKey));
+            }
+            logger.info("Nisse inlining following properties:");
+            for (Map.Entry<String, String> entry : inlinedProperties.entrySet()) {
+                logger.info("* {}={}", entry.getKey(), entry.getValue());
+            }
             for (MavenProject mavenProject : mavenProjects) {
                 Path pomPath = mavenProject.getFile().toPath();
                 Model model = readProjectModel(pomPath);
-                for (String key : inlinedKeys) {
-                    String keyPlaceholder = "${" + key + "}";
-                    if (keyPlaceholder.equals(model.getVersion())) {
+                for (Map.Entry<String, String> property : inlinedProperties.entrySet()) {
+                    String keyPlaceholder = property.getKey();
+                    if (keyPlaceholder.equals(model.getVersion())
+                            || (model.getParent() != null
+                                    && keyPlaceholder.equals(model.getParent().getVersion()))) {
                         // needs rewrite
-                        logger.info(" * {} needs inlining of {}", mavenProject.getId(), key);
-                        Path inlinedPomPath = Paths.get(mavenProject.getBuild().getDirectory());
-                        Files.createDirectories(inlinedPomPath);
-                        Files.copy(pomPath, inlinedPomPath, StandardCopyOption.REPLACE_EXISTING);
+                        logger.info(" * {} needs inlining of {}", mavenProject.getId(), keyPlaceholder);
+                        Path inlinedPomPath = Paths.get(mavenProject.getBuild().getDirectory())
+                                .resolve("inlined-" + pomPath.getFileName());
+                        Files.createDirectories(inlinedPomPath.getParent());
+                        inline(pomPath, inlinedPomPath, inlinedProperties);
+                        mavenProject.setFile(inlinedPomPath.toFile());
                     }
                 }
             }
@@ -80,5 +96,23 @@ final class NissePropertyInliner {
         options.put(ModelProcessor.INPUT_SOURCE, new InputSource());
         options.put(ModelProcessor.SOURCE, modelSource);
         return modelProcessor.read(modelSource.getInputStream(), options);
+    }
+
+    private void inline(Path sourcePom, Path targetPom, Map<String, String> inlinedProperties) throws IOException {
+        Function<String, String> replacer = line -> {
+            if (line.contains("${") && line.contains("}")) {
+                String processed = line;
+                for (Map.Entry<String, String> entry : inlinedProperties.entrySet()) {
+                    processed = processed.replace(entry.getKey(), entry.getValue());
+                }
+                return processed;
+            }
+            return line;
+        };
+
+        try (Stream<String> lines =
+                Files.lines(sourcePom, StandardCharsets.UTF_8).map(replacer)) {
+            Files.write(targetPom, lines.collect(Collectors.toList()), StandardCharsets.UTF_8);
+        }
     }
 }

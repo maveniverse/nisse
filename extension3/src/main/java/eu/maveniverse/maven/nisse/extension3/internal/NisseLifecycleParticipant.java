@@ -2,17 +2,23 @@ package eu.maveniverse.maven.nisse.extension3.internal;
 
 import static java.util.Objects.requireNonNull;
 
+import eu.maveniverse.maven.nisse.core.NisseConfiguration;
+import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
 import java.io.IOException;
+import java.nio.file.Paths;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.maven.AbstractMavenLifecycleParticipant;
 import org.apache.maven.MavenExecutionException;
 import org.apache.maven.execution.MavenSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Singleton
 @Named
 class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
+    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final NissePropertyInliner inliner;
 
     @Inject
@@ -22,6 +28,16 @@ class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
 
     @Override
     public void afterProjectsRead(MavenSession session) throws MavenExecutionException {
+        NisseConfiguration configuration = SimpleNisseConfiguration.builder()
+                .withSystemProperties(session.getSystemProperties())
+                .withUserProperties(session.getUserProperties())
+                .withCurrentWorkingDirectory(Paths.get(session.getRequest().getBaseDirectory()))
+                .build();
+        for (String inlinedKey : configuration.getInlinedPropertyKeys()) {
+            if (inliner.inlinedKeys(session).add(inlinedKey)) {
+                logger.info("Nisse property {} asked for inlining", inlinedKey);
+            }
+        }
         try {
             inliner.mayInlinePom(session, session.getProjects());
         } catch (IOException e) {
