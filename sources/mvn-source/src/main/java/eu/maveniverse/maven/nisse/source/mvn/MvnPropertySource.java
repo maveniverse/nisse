@@ -9,9 +9,16 @@ package eu.maveniverse.maven.nisse.source.mvn;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.PropertySource;
+import java.io.InputStream;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import javax.inject.Named;
 import javax.inject.Singleton;
 
@@ -46,7 +53,7 @@ public class MvnPropertySource implements PropertySource {
             if (mavenVersion.contains("-")) {
                 int qIdx = mavenVersion.indexOf('-');
                 result.put(VERSION_QUALIFIER, mavenVersion.substring(qIdx + 1));
-                mavenVersion = mavenVersion.substring(0, mavenVersion.indexOf('-'));
+                mavenVersion = mavenVersion.substring(0, qIdx);
             }
             String[] elems = mavenVersion.split("\\.");
             result.put(VERSION_MAJOR, elems[0]);
@@ -54,6 +61,31 @@ public class MvnPropertySource implements PropertySource {
             result.put(VERSION_MAJOR_MINOR, elems[0] + "." + elems[1]);
             result.put(VERSION_PATCH, elems[2]);
         }
+        Properties mavenBuildProperties = getMavenBuildProperties(configuration);
+        if (!mavenBuildProperties.isEmpty()) {
+            mavenBuildProperties.stringPropertyNames().forEach(k -> result.put(k, mavenBuildProperties.getProperty(k)));
+        }
         return Collections.unmodifiableMap(result);
+    }
+
+    private static Properties getMavenBuildProperties(NisseConfiguration configuration) {
+        String mavenHome = configuration.getConfiguration().get("maven.home");
+        String mavenVersion = configuration.getConfiguration().get("maven.version");
+        Properties properties = new Properties();
+        try {
+            if (mavenHome != null && mavenVersion != null) {
+                Path mavenCoreJarPath = Paths.get(mavenHome).resolve("lib/maven-core-" + mavenVersion + ".jar");
+                if (Files.isRegularFile(mavenCoreJarPath)) {
+                    try (FileSystem fs = FileSystems.newFileSystem(mavenCoreJarPath, (ClassLoader) null);
+                            InputStream input =
+                                    Files.newInputStream(fs.getPath("/org/apache/maven/messages/build.properties"))) {
+                        properties.load(input);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return properties;
     }
 }
