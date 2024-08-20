@@ -1,9 +1,9 @@
 # Maveniverse Nisse
 
 This is a near-trivial Maven 3 and 4 extension, that provides following services:
-* sources properties from different sources and make them Maven User Properties
-* redoes the [CI Friendly Versions](https://maven.apache.org/maven-ci-friendly.html) feature
-* is able to "inline" properties, so there is no need to flatten or any other mumbo-jumbo, it "just works"
+* sources properties from different sources and makes them Maven User Properties
+* redoes the [CI Friendly Versions](https://maven.apache.org/maven-ci-friendly.html) feature (not with **Plugin**)
+* is able to "inline" properties, so there is no need to flatten or any other mumbo-jumbo, it "just works" (not with **Plugin**)
 
 ## Implemented Sources
 
@@ -15,9 +15,30 @@ Currently there are 4 sources just to showcase things:
 
 Look into ITs for examples.
 
-## Usage
+## Usage with Maven3.9.x
 
-Maven 3.9.x: Add this to your `.mvn/extensions.xml` file:
+Nisse offers a Plugin and a Core Extension. With using Plugin only, features you can have is LIMITED to properties
+injection into Project properties (a la [properties-maven-plugin](https://www.mojohaus.org/properties-maven-plugin/) from Mojohaus).
+To use the plugin:
+
+```xml
+  <plugin>
+    <groupId>eu.maveniverse.maven.nisse</groupId>
+    <artifactId>plugin3</artifactId>
+    <version>${version.nisse}</version>
+    <executions>
+        <execution>
+            <id>inject-properties</id>
+            <goals>
+                <goal>inject-properties</goal>
+            </goals>
+            <phase>validate</phase>
+        </execution>
+    </executions>
+</plugin>
+```
+
+The Core Extension is more powerful, to use it add this to your `.mvn/extensions.xml` file:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -25,7 +46,7 @@ Maven 3.9.x: Add this to your `.mvn/extensions.xml` file:
     <extension>
         <groupId>eu.maveniverse.maven.nisse</groupId>
         <artifactId>extension3</artifactId>
-        <version>0.1.0</version>
+        <version>${version.nisse}</version>
     </extension>
 </extensions>
 ```
@@ -40,4 +61,6 @@ Look for "USER PROPERTIES" section. Nisse injected some properties for you as th
 Moreover, you are free to use them as version (ie. `<version>${nisse.jgit.commit}</version>`) and look
 what happens. Oh, and just install/deploy as usual, no need for any mumbo-jumbo.
 
-Maven 4.x: Support is on the way... (keep eye on `extension4`).
+## Usage with Maven 4.0.x
+
+Support is on the way... keep eye on `eu.maveniverse.maven.nisse:plugin4` and `eu.maveniverse.maven.nisse:extension4`.
