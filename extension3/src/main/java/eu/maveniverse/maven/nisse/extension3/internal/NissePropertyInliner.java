@@ -30,15 +30,15 @@ import org.slf4j.LoggerFactory;
 
 @Singleton
 @Named
-public final class NissePropertyInliner {
-    private static final String NEEDS_INLINING_LIST = NisseConfiguration.PROPERTY_PREFIX + "needs-inlining";
+final class NissePropertyInliner {
+    private static final String NEEDS_INLINING_COLLECTION = NisseConfiguration.PROPERTY_PREFIX + "needs-inlining";
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
     @SuppressWarnings("unchecked")
     public Collection<String> inlinedKeys(MavenSession session) {
         return (Set<String>) session.getRepositorySession()
                 .getData()
-                .computeIfAbsent(NissePropertyInliner.NEEDS_INLINING_LIST, ConcurrentHashMap::newKeySet);
+                .computeIfAbsent(NissePropertyInliner.NEEDS_INLINING_COLLECTION, ConcurrentHashMap::newKeySet);
     }
 
     void mayInlinePom(MavenSession session, Collection<MavenProject> mavenProjects) throws IOException {
