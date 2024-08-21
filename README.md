@@ -15,11 +15,11 @@ Currently there are 4 sources just to showcase things:
 
 Look into ITs for examples.
 
-## Usage with Maven3.9.x
+## Usage with Maven 3.9.x
 
 Nisse offers a Plugin and a Core Extension. With using Plugin only, features you can use is LIMITED to properties
 injection into Project properties (a la [properties-maven-plugin](https://www.mojohaus.org/properties-maven-plugin/) from Mojohaus).
-To use the plugin, add it to your POM like this:
+To use Nisse Plugin, add it to your POM like this:
 
 ```xml
   <plugin>
@@ -38,7 +38,7 @@ To use the plugin, add it to your POM like this:
   </plugin>
 ```
 
-The Core Extension is more powerful, to use it add this to your `.mvn/extensions.xml` file:
+The Nisse Extension `extension3` is more powerful, to use it add this to your `.mvn/extensions.xml` file:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
