@@ -1,7 +1,7 @@
 # Maveniverse Nisse
 
 This is a near-trivial Maven 3 and 4 extension, that provides following services:
-* extension and plugin: sources properties from different sources and makes them Maven User Properties
+* extension and plugin: sources properties from different sources and makes them available in build
 * extension only: redoes the [CI Friendly Versions](https://maven.apache.org/maven-ci-friendly.html) feature (not with **Plugin**)
 * extension only: is able to "inline" properties, so there is no need to flatten or any other mumbo-jumbo, it "just works" (not with **Plugin**)
 
