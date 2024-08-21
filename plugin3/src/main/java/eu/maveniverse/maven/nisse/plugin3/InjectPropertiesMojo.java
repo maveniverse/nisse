@@ -1,4 +1,4 @@
-package eu.maveniverse.maven.nisse.plugin4;
+package eu.maveniverse.maven.nisse.plugin3;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
@@ -12,6 +12,9 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.project.MavenProject;
 
+/**
+ * Nisse inject-properties Mojo that injects created properties into project.
+ */
 @Mojo(name = "inject-properties", threadSafe = true)
 public class InjectPropertiesMojo extends AbstractMojo {
     @Inject
