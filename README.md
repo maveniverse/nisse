@@ -10,14 +10,14 @@ This is a near-trivial Maven 3 and 4 extension, that provides following services
 Currently there are 4 sources just to showcase things:
 * file-source: it reads up a Java Properties File
 * jgit-source: it uses Eclipse JGit to get some git related data
-* mvn-source: it provides major/minor/patch versions of currently use Maven
+* mvn-source: it provides major/minor/patch versions of currently used Maven
 * os-source: heavily inspired by https://github.com/trustin/os-maven-plugin (and annoyed that user does not maintain it, so code is not reusable nor works with Maven4) 
 
 Look into ITs for examples.
 
 ## Usage with Maven3.9.x
 
-Nisse offers a Plugin and a Core Extension. With using Plugin only, features you can have is LIMITED to properties
+Nisse offers a Plugin and a Core Extension. With using Plugin only, features you can use is LIMITED to properties
 injection into Project properties (a la [properties-maven-plugin](https://www.mojohaus.org/properties-maven-plugin/) from Mojohaus).
 To use the plugin:
 
