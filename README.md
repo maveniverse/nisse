@@ -61,6 +61,10 @@ Look for "USER PROPERTIES" section. Nisse injected some properties for you as th
 Moreover, you are free to use them as version (ie. `<version>${nisse.jgit.commit}</version>`) and look
 what happens. Oh, and just install/deploy as usual, no need for any mumbo-jumbo.
 
+With extension present, the "CI friendly feature" of Maven is improved as:
+* it allows ANY expression in version, as long it is defined (effective POM will not have expression left)
+* there is no need to use flatten plugin to install/deploy, as version used expressions are inlined in POM.
+
 ## Usage with Maven 4.0.x
 
 Support is on the way... keep eye on `eu.maveniverse.maven.nisse:plugin4` and `eu.maveniverse.maven.nisse:extension4`.
