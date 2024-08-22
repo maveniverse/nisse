@@ -23,6 +23,7 @@
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
+    <maven.compiler.release>17</maven.compiler.release>
     <version.maven>4.0.0-beta-3</version.maven>
     <version.maven-plugin-tools>4.0.0-beta-1</version.maven-plugin-tools>
   </properties>
@@ -102,8 +103,8 @@
         <version>${version.maven-plugin-tools}</version>
         <configuration>
           <goalPrefix>nisse</goalPrefix>
-          <requiredMavenVersion>3.6.3</requiredMavenVersion>
-          <requiredJavaVersion>8</requiredJavaVersion>
+          <requiredMavenVersion>4.0.0-beta-3</requiredMavenVersion>
+          <requiredJavaVersion>17</requiredJavaVersion>
         </configuration>
       </plugin>
     </plugins>
