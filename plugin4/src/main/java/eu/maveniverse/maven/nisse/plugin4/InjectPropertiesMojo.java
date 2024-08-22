@@ -3,38 +3,35 @@ package eu.maveniverse.maven.nisse.plugin4;
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
-import java.nio.file.Paths;
-import javax.inject.Inject;
-import org.apache.maven.execution.MavenSession;
-import org.apache.maven.plugin.AbstractMojo;
-import org.apache.maven.plugin.MojoExecutionException;
-import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.plugins.annotations.Mojo;
-import org.apache.maven.project.MavenProject;
+import org.apache.maven.api.Project;
+import org.apache.maven.api.Session;
+import org.apache.maven.api.di.Inject;
+import org.apache.maven.api.plugin.MojoException;
+import org.apache.maven.api.plugin.annotations.Mojo;
+import org.apache.maven.api.services.ProjectManager;
 
 /**
  * Nisse inject-properties Mojo that injects created properties into project.
  */
-@Mojo(name = "inject-properties", threadSafe = true)
-public class InjectPropertiesMojo extends AbstractMojo {
+@Mojo(name = "inject-properties")
+public class InjectPropertiesMojo implements org.apache.maven.api.plugin.Mojo {
     @Inject
-    private MavenProject mavenProject;
+    private Project mavenProject;
 
     @Inject
-    private MavenSession mavenSession;
+    private Session mavenSession;
 
     @Inject
     private NisseManager nisseManager;
 
     @Override
-    public void execute() throws MojoExecutionException, MojoFailureException {
+    public void execute() throws MojoException {
         NisseConfiguration configuration = SimpleNisseConfiguration.builder()
                 .withSystemProperties(mavenSession.getSystemProperties())
                 .withUserProperties(mavenSession.getUserProperties())
-                .withCurrentWorkingDirectory(Paths.get(mavenSession.getRequest().getBaseDirectory()))
+                .withCurrentWorkingDirectory(mavenSession.getTopDirectory())
                 .build();
-        nisseManager
-                .createProperties(configuration)
-                .forEach((k, v) -> mavenProject.getProperties().setProperty(k, v));
+        ProjectManager projectManager = mavenSession.getService(ProjectManager.class);
+        nisseManager.createProperties(configuration).forEach((k, v) -> projectManager.setProperty(mavenProject, k, v));
     }
 }

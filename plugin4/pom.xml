@@ -23,9 +23,8 @@
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
-    <version.maven>3.9.9</version.maven>
-    <version.resolver>1.9.22</version.resolver>
-    <version.maven-plugin-tools>3.14.0</version.maven-plugin-tools>
+    <version.maven>4.0.0-beta-3</version.maven>
+    <version.maven-plugin-tools>4.0.0-beta-1</version.maven-plugin-tools>
   </properties>
 
   <dependencies>
@@ -64,32 +63,21 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>org.apache.maven.plugin-tools</groupId>
-      <artifactId>maven-plugin-annotations</artifactId>
-      <version>${version.maven-plugin-tools}</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
       <groupId>org.apache.maven</groupId>
-      <artifactId>maven-core</artifactId>
+      <artifactId>maven-api-core</artifactId>
       <version>${version.maven}</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.maven</groupId>
-      <artifactId>maven-model</artifactId>
+      <artifactId>maven-api-model</artifactId>
       <version>${version.maven}</version>
       <scope>provided</scope>
     </dependency>
-
     <dependency>
-      <groupId>javax.inject</groupId>
-      <artifactId>javax.inject</artifactId>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.eclipse.sisu</groupId>
-      <artifactId>org.eclipse.sisu.inject</artifactId>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>maven-api-di</artifactId>
+      <version>${version.maven}</version>
       <scope>provided</scope>
     </dependency>
 
