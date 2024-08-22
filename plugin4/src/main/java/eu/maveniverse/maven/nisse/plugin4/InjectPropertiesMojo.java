@@ -5,7 +5,6 @@ import eu.maveniverse.maven.nisse.core.NisseManager;
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
 import org.apache.maven.api.Project;
 import org.apache.maven.api.Session;
-import org.apache.maven.api.di.Inject;
 import org.apache.maven.api.plugin.MojoException;
 import org.apache.maven.api.plugin.annotations.Mojo;
 import org.apache.maven.api.services.ProjectManager;
@@ -15,13 +14,13 @@ import org.apache.maven.api.services.ProjectManager;
  */
 @Mojo(name = "inject-properties")
 public class InjectPropertiesMojo implements org.apache.maven.api.plugin.Mojo {
-    @Inject
+    @org.apache.maven.api.di.Inject
     private Project mavenProject;
 
-    @Inject
+    @org.apache.maven.api.di.Inject
     private Session mavenSession;
 
-    @Inject
+    @org.apache.maven.api.di.Inject
     private NisseManager nisseManager;
 
     @Override
