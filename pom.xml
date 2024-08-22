@@ -39,6 +39,8 @@
     <module>sources</module>
     <module>plugin3</module>
     <module>extension3</module>
+    <module>plugin4</module>
+    <module>extension4</module>
   </modules>
 
   <scm>
