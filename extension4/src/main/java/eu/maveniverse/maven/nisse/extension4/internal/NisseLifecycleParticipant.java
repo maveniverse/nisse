@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
 import java.io.IOException;
-import java.nio.file.Paths;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -31,7 +30,7 @@ class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
         NisseConfiguration configuration = SimpleNisseConfiguration.builder()
                 .withSystemProperties(session.getSystemProperties())
                 .withUserProperties(session.getUserProperties())
-                .withCurrentWorkingDirectory(Paths.get(session.getRequest().getBaseDirectory()))
+                .withCurrentWorkingDirectory(session.getRequest().getTopDirectory())
                 .build();
         for (String inlinedKey : configuration.getInlinedPropertyKeys()) {
             if (inliner.inlinedKeys(session).add(inlinedKey)) {
