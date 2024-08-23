@@ -25,6 +25,9 @@ import org.eclipse.sisu.Priority;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * This is a component extending maven-embedder, it MUST be Sisu as Maven DI is still nowhere at this stage.
+ */
 @Singleton
 @Named
 @Priority(200)

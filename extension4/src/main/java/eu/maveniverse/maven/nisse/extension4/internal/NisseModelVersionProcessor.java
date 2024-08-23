@@ -13,43 +13,39 @@ import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import java.util.Properties;
 import javax.inject.Inject;
 import javax.inject.Named;
-import javax.inject.Provider;
 import org.apache.maven.SessionScoped;
+import org.apache.maven.api.Session;
+import org.apache.maven.api.di.Priority;
 import org.apache.maven.api.services.ModelBuilderRequest;
 import org.apache.maven.api.services.model.ModelVersionProcessor;
-import org.apache.maven.execution.MavenSession;
-import org.eclipse.sisu.Priority;
 
 @SessionScoped
 @Named
 @Priority(200)
 final class NisseModelVersionProcessor implements ModelVersionProcessor {
-    private final Provider<MavenSession> sessionProvider;
-    private final NissePropertyInliner inliner;
+    private final Session session;
+    private final NisseListener.InlinedKeys inlinedKeys;
 
     @Inject
-    public NisseModelVersionProcessor(Provider<MavenSession> sessionProvider, NissePropertyInliner inliner) {
-        this.sessionProvider = requireNonNull(sessionProvider, "sessionProvider");
-        this.inliner = requireNonNull(inliner, "inliner");
+    public NisseModelVersionProcessor(Session session) {
+        this.session = requireNonNull(session, "session");
+        inlinedKeys = session.getData().computeIfAbsent(NisseListener.INLINED_KEYS, NisseListener.InlinedKeys::new);
     }
 
     @Override
     public boolean isValidProperty(String property) {
-        MavenSession session = this.sessionProvider.get();
         boolean valid = property.startsWith(NisseConfiguration.PROPERTY_PREFIX)
-                && session.getRequest().getUserProperties().containsKey(property);
+                && session.getUserProperties().containsKey(property);
         if (valid) {
-            inliner.inlinedKeys(session).add(property);
+            inlinedKeys.addKey(property);
         }
         return valid;
     }
 
     @Override
     public void overwriteModelProperties(Properties modelProperties, ModelBuilderRequest request) {
-        MavenSession session = this.sessionProvider.get();
-        for (String inlinedKey : inliner.inlinedKeys(session)) {
-            modelProperties.setProperty(
-                    inlinedKey, session.getRequest().getUserProperties().getProperty(inlinedKey));
+        for (String inlinedKey : inlinedKeys.getKeys()) {
+            modelProperties.setProperty(inlinedKey, session.getUserProperties().get(inlinedKey));
         }
     }
 }
