@@ -14,13 +14,13 @@ import java.util.Properties;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Provider;
-import javax.inject.Singleton;
+import org.apache.maven.SessionScoped;
 import org.apache.maven.api.services.ModelBuilderRequest;
 import org.apache.maven.api.services.model.ModelVersionProcessor;
 import org.apache.maven.execution.MavenSession;
 import org.eclipse.sisu.Priority;
 
-@Singleton
+@SessionScoped
 @Named
 @Priority(200)
 final class NisseModelVersionProcessor implements ModelVersionProcessor {

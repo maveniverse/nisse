@@ -20,8 +20,7 @@ public class InjectPropertiesMojo implements org.apache.maven.api.plugin.Mojo {
     @org.apache.maven.api.di.Inject
     private Session mavenSession;
 
-    @org.apache.maven.api.di.Inject
-    private NisseManager nisseManager;
+    private final NisseManager nisseManager = SisuBridge.boot();
 
     @Override
     public void execute() throws MojoException {

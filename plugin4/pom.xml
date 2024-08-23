@@ -82,6 +82,21 @@
       <scope>provided</scope>
     </dependency>
 
+    <!-- Sisu -->
+    <dependency>
+      <groupId>javax.inject</groupId>
+      <artifactId>javax.inject</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.sisu</groupId>
+      <artifactId>org.eclipse.sisu.inject</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.google.inject</groupId>
+      <artifactId>guice</artifactId>
+    </dependency>
+
     <!-- Test -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -98,6 +113,10 @@
   <build>
     <plugins>
       <plugin>
+        <groupId>org.eclipse.sisu</groupId>
+        <artifactId>sisu-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-plugin-plugin</artifactId>
         <version>${version.maven-plugin-tools}</version>
@@ -113,6 +132,12 @@
   <profiles>
     <profile>
       <id>run-its</id>
+      <activation>
+        <property>
+          <name>nisse.mvn.major</name>
+          <value>4</value>
+        </property>
+      </activation>
       <build>
         <plugins>
           <plugin>

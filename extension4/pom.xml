@@ -100,6 +100,12 @@
   <profiles>
     <profile>
       <id>run-its</id>
+      <activation>
+        <property>
+          <name>nisse.mvn.major</name>
+          <value>4</value>
+        </property>
+      </activation>
       <build>
         <plugins>
           <plugin>
