@@ -11,10 +11,10 @@ import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import java.util.Properties;
-import javax.inject.Inject;
-import javax.inject.Named;
 import org.apache.maven.SessionScoped;
 import org.apache.maven.api.Session;
+import org.apache.maven.api.di.Inject;
+import org.apache.maven.api.di.Named;
 import org.apache.maven.api.di.Priority;
 import org.apache.maven.api.services.ModelBuilderRequest;
 import org.apache.maven.api.services.model.ModelVersionProcessor;
