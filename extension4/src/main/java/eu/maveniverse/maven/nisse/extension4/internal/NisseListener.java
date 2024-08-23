@@ -6,12 +6,12 @@ import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.maven.SessionScoped;
 import org.apache.maven.api.Event;
 import org.apache.maven.api.Listener;
 import org.apache.maven.api.Session;
 import org.apache.maven.api.SessionData;
 import org.apache.maven.api.di.Named;
+import org.apache.maven.api.di.SessionScoped;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
