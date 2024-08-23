@@ -14,5 +14,5 @@ jobs:
       maven-single-run: false
       maven-matrix: '[ "3.9.9", "4.0.0-beta-3" ]'
       jdk-matrix: '[ "21" ]'
-      maven-test: './mvnw clean verify -e -B -V -P run-its'
+      maven-test: './mvnw clean verify -e -B -V'
 
