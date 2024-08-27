@@ -15,13 +15,15 @@ import org.apache.maven.api.Session;
 import org.apache.maven.api.di.Inject;
 import org.apache.maven.api.di.Named;
 import org.apache.maven.api.di.Priority;
-import org.apache.maven.api.di.Singleton;
+import org.apache.maven.api.di.SessionScoped;
+import org.apache.maven.api.di.Typed;
 import org.apache.maven.api.services.ModelBuilderRequest;
 import org.apache.maven.api.services.model.ModelVersionProcessor;
 
-@Singleton
+@SessionScoped
 @Named
 @Priority(200)
+@Typed
 final class NisseModelVersionProcessor implements ModelVersionProcessor {
     private final Session session;
     private final NisseListener.InlinedKeys inlinedKeys;
