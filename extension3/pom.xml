@@ -119,6 +119,12 @@
   <profiles>
     <profile>
       <id>run-its</id>
+      <activation>
+        <property>
+          <name>nisse.mvn.major</name>
+          <value>3</value>
+        </property>
+      </activation>
       <build>
         <plugins>
           <plugin>
