@@ -24,7 +24,7 @@
 
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
-    <version.maven>4.0.0-beta-3</version.maven>
+    <version.maven>4.0.0-beta-4-SNAPSHOT</version.maven>
     <version.maven-plugin-tools>4.0.0-beta-1</version.maven-plugin-tools>
   </properties>
 

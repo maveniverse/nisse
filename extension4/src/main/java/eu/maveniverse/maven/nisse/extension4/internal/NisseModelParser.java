@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.maven.SessionScoped;
 import org.apache.maven.api.Session;
 import org.apache.maven.api.di.Inject;
@@ -19,18 +20,18 @@ import org.apache.maven.api.spi.ModelParser;
 import org.apache.maven.api.spi.ModelParserException;
 import org.apache.maven.internal.impl.DefaultModelXmlFactory;
 import org.apache.maven.model.v4.MavenTransformer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @SessionScoped
 @Named
 @Typed
 public class NisseModelParser implements ModelParser {
-
-    private final Session session;
+    private final Logger logger = LoggerFactory.getLogger(getClass());
     private final NisseConfiguration configuration;
 
     @Inject
     public NisseModelParser(Session session) {
-        this.session = session;
         this.configuration = SimpleNisseConfiguration.builder()
                 .withSystemProperties(session.getSystemProperties())
                 .withUserProperties(session.getUserProperties())
@@ -60,14 +61,15 @@ public class NisseModelParser implements ModelParser {
                 builder.inputStream(source.openStream());
             }
             Model model = factory.read(builder.build());
-            Model newModel = new MavenTransformer(this::transform).visit(model);
-            return newModel;
+            String id = model.getId();
+            return new MavenTransformer(v -> transform(id, v)).visit(model);
         } catch (IOException e) {
             throw new ModelParserException("Unable to parse source " + source, e);
         }
     }
 
-    private String transform(String value) {
+    private String transform(String modelId, String value) {
+        final AtomicBoolean logBarrier = new AtomicBoolean(false);
         if (value != null) {
             while (true) {
                 int idxStart = value.indexOf("${" + NisseConfiguration.PROPERTY_PREFIX);
@@ -77,6 +79,10 @@ public class NisseModelParser implements ModelParser {
                         String key = value.substring(idxStart + 2, idxEnd);
                         String replacement = configuration.getConfiguration().get(key);
                         if (replacement != null) {
+                            if (logBarrier.compareAndSet(false, true)) {
+                                logger.info("Inlining {}", modelId);
+                            }
+                            logger.info(" * ${{}}={}", key, replacement);
                             value = value.substring(0, idxStart) + replacement + value.substring(idxEnd + 1);
                             continue;
                         } else {
