@@ -37,8 +37,9 @@
   <modules>
     <module>core</module>
     <module>sources</module>
-    <module>plugin3</module>
     <module>extension3</module>
+    <module>plugin3</module>
+    <module>it</module>
   </modules>
 
   <scm>
@@ -99,6 +100,16 @@
       <dependency>
         <groupId>eu.maveniverse.maven.nisse.sources</groupId>
         <artifactId>file-source</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>eu.maveniverse.maven.nisse</groupId>
+        <artifactId>extension3</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>eu.maveniverse.maven.nisse</groupId>
+        <artifactId>plugin3</artifactId>
         <version>${project.version}</version>
       </dependency>
 
