@@ -17,7 +17,7 @@
     <version>0.1.2-SNAPSHOT</version>
   </parent>
 
-  <artifactId>extension3</artifactId>
+  <artifactId>extension3-its</artifactId>
   <packaging>pom</packaging>
 
   <name>${project.groupId}:${project.artifactId}</name>
