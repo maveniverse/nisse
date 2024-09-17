@@ -29,6 +29,9 @@
   </modules>
 
   <properties>
+    <requireBuildtimeJavaVersion.version>[8,)</requireBuildtimeJavaVersion.version>
+    <requireBuildtimeMavenVersion.version>[3.6.3,)</requireBuildtimeMavenVersion.version>
+
     <maven.install.skip>true</maven.install.skip>
     <maven.deploy.skip>true</maven.deploy.skip>
   </properties>
