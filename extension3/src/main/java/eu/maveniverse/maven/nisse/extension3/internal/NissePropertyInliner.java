@@ -35,10 +35,14 @@ final class NissePropertyInliner {
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
     @SuppressWarnings("unchecked")
-    public Collection<String> inlinedKeys(MavenSession session) {
-        return (Set<String>) session.getRepositorySession()
-                .getData()
-                .computeIfAbsent(NissePropertyInliner.NEEDS_INLINING_COLLECTION, ConcurrentHashMap::newKeySet);
+    public synchronized Collection<String> inlinedKeys(MavenSession session) {
+        Set<String> inlinedKeys = (Set<String>)
+                session.getRepositorySession().getData().get(NissePropertyInliner.NEEDS_INLINING_COLLECTION);
+        if (inlinedKeys == null) {
+            inlinedKeys = ConcurrentHashMap.newKeySet();
+            session.getRepositorySession().getData().set(NissePropertyInliner.NEEDS_INLINING_COLLECTION, inlinedKeys);
+        }
+        return inlinedKeys;
     }
 
     void mayInlinePom(MavenSession session, Collection<MavenProject> mavenProjects) throws IOException {
