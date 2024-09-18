@@ -33,17 +33,14 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final NisseManager nisseManager;
     private final SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor;
-    private final RuntimeInformation runtimeInformation;
 
     @Inject
     public NisseConfigurationProcessor(
             NisseManager nisseManager,
-            SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor,
-            RuntimeInformation runtimeInformation) {
+            SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor) {
         this.nisseManager = requireNonNull(nisseManager, "nisseManager");
         this.settingsXmlConfigurationProcessor =
                 requireNonNull(settingsXmlConfigurationProcessor, "settingsXmlConfigurationProcessor");
-        this.runtimeInformation = requireNonNull(runtimeInformation, "runtimeInformation");
     }
 
     @Override
