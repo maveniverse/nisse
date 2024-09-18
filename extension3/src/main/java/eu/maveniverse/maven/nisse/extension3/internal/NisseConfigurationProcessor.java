@@ -21,7 +21,6 @@ import javax.inject.Singleton;
 import org.apache.maven.cli.CliRequest;
 import org.apache.maven.cli.configuration.ConfigurationProcessor;
 import org.apache.maven.cli.configuration.SettingsXmlConfigurationProcessor;
-import org.apache.maven.rtinfo.RuntimeInformation;
 import org.eclipse.sisu.Priority;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,8 +35,7 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
 
     @Inject
     public NisseConfigurationProcessor(
-            NisseManager nisseManager,
-            SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor) {
+            NisseManager nisseManager, SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor) {
         this.nisseManager = requireNonNull(nisseManager, "nisseManager");
         this.settingsXmlConfigurationProcessor =
                 requireNonNull(settingsXmlConfigurationProcessor, "settingsXmlConfigurationProcessor");
