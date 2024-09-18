@@ -15,7 +15,7 @@ Currently there are 4 sources just to showcase things:
 
 Look into ITs for examples.
 
-## Usage with Maven 3.9.x
+## Usage with Maven 3.9.x and 3.8.x
 
 Nisse offers a Plugin and a Core Extension. With using Plugin only, features you can use is LIMITED to properties
 injection into Project properties (a la [properties-maven-plugin](https://www.mojohaus.org/properties-maven-plugin/) from Mojohaus).
