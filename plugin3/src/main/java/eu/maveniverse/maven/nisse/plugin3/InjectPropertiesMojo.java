@@ -4,6 +4,7 @@ import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
 import java.nio.file.Paths;
+import java.util.Map;
 import javax.inject.Inject;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
@@ -33,8 +34,8 @@ public class InjectPropertiesMojo extends AbstractMojo {
                 .withUserProperties(mavenSession.getUserProperties())
                 .withCurrentWorkingDirectory(Paths.get(mavenSession.getRequest().getBaseDirectory()))
                 .build();
-        nisseManager
-                .createProperties(configuration)
-                .forEach((k, v) -> mavenProject.getProperties().setProperty(k, v));
+        Map<String, String> properties = nisseManager.createProperties(configuration);
+        getLog().info("Injecting " + properties.size() + " properties");
+        properties.forEach((k, v) -> mavenProject.getProperties().setProperty(k, v));
     }
 }
