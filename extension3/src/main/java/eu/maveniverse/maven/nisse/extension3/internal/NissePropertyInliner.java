@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -63,8 +62,7 @@ final class NissePropertyInliner {
                 if (isAnyKeyPresent(inlinedProperties, pomPath)) {
                     // needs rewrite
                     logger.info(" * {}:{} needs inlining", mavenProject.getGroupId(), mavenProject.getArtifactId());
-                    Path inlinedPomPath = Paths.get(mavenProject.getBuild().getDirectory())
-                            .resolve("inlined-" + pomPath.getFileName());
+                    Path inlinedPomPath = pomPath.getParent().resolve(".inlined-" + pomPath.getFileName());
                     Files.createDirectories(inlinedPomPath.getParent());
                     inline(pomPath, inlinedPomPath, inlinedProperties);
                     mavenProject.setFile(inlinedPomPath.toFile());
