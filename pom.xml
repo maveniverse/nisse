@@ -68,8 +68,8 @@
     -->
     <maven.compiler.release>8</maven.compiler.release>
     <requireBuildtimeJavaVersion.version>[21.0.3,)</requireBuildtimeJavaVersion.version>
-    <requireBuildtimeMavenVersion.version>[3.9.8,)</requireBuildtimeMavenVersion.version>
-    <requireRuntimeMavenVersion.version>[3.6.3,)</requireRuntimeMavenVersion.version>
+    <requireBuildtimeMavenVersion.version>[3.9.9,)</requireBuildtimeMavenVersion.version>
+    <requireRuntimeMavenVersion.version>[3.8.8,)</requireRuntimeMavenVersion.version>
 
     <version.slf4j>1.7.36</version.slf4j>
   </properties>
