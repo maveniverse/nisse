@@ -21,6 +21,10 @@ import javax.inject.Singleton;
 import org.apache.maven.cli.CliRequest;
 import org.apache.maven.cli.configuration.ConfigurationProcessor;
 import org.apache.maven.cli.configuration.SettingsXmlConfigurationProcessor;
+import org.apache.maven.rtinfo.RuntimeInformation;
+import org.eclipse.aether.util.version.GenericVersionScheme;
+import org.eclipse.aether.version.InvalidVersionSpecificationException;
+import org.eclipse.aether.version.Version;
 import org.eclipse.sisu.Priority;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,18 +36,38 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final NisseManager nisseManager;
     private final SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor;
+    private final RuntimeInformation runtimeInformation;
 
     @Inject
     public NisseConfigurationProcessor(
-            NisseManager nisseManager, SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor) {
+            NisseManager nisseManager,
+            SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor,
+            RuntimeInformation runtimeInformation) {
         this.nisseManager = requireNonNull(nisseManager, "nisseManager");
         this.settingsXmlConfigurationProcessor =
                 requireNonNull(settingsXmlConfigurationProcessor, "settingsXmlConfigurationProcessor");
+        this.runtimeInformation = requireNonNull(runtimeInformation, "runtimeInformation");
     }
 
     @Override
     public void process(CliRequest request) throws Exception {
         settingsXmlConfigurationProcessor.process(request);
+
+        // Broadening support: Maven versions pre 3.9.2 had no means to configure resources
+        // from project. In those case we "backport" session.rootDirectory ONLY
+        // CliRequest.multiModuleProjectDirectory -> session.rootDirectory
+        if (needsTrick()) {
+            String sessionRootDirectory =
+                    request.getMultiModuleProjectDirectory().getAbsolutePath();
+            Properties userProperties = request.getUserProperties();
+            for (String key : userProperties.stringPropertyNames()) {
+                String value = userProperties.getProperty(key);
+                if (value != null && value.contains("${session.rootDirectory}")) {
+                    value = value.replace("${session.rootDirectory}", sessionRootDirectory);
+                }
+                userProperties.setProperty(key, value);
+            }
+        }
 
         // create properties and push what we got into CLI user properties
         Properties userProperties = request.getUserProperties();
@@ -59,5 +83,16 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 request.getUserProperties().setProperty(k, v);
             }
         });
+    }
+
+    private boolean needsTrick() {
+        try {
+            GenericVersionScheme versionScheme = new GenericVersionScheme();
+            Version notNeeds = versionScheme.parseVersion("3.9.2");
+            Version currentMvn = versionScheme.parseVersion(runtimeInformation.getMavenVersion());
+            return notNeeds.compareTo(currentMvn) > -1;
+        } catch (InvalidVersionSpecificationException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
