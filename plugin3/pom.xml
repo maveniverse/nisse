@@ -17,7 +17,8 @@
     <version>0.2.1-SNAPSHOT</version>
   </parent>
 
-  <artifactId>plugin3</artifactId>
+  <groupId>eu.maveniverse.maven.plugins</groupId>
+  <artifactId>nisse-plugin3</artifactId>
   <packaging>maven-plugin</packaging>
 
   <name>${project.groupId}:${project.artifactId}</name>

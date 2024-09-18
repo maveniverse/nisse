@@ -24,8 +24,8 @@
 
   <dependencies>
     <dependency>
-      <groupId>eu.maveniverse.maven.nisse</groupId>
-      <artifactId>plugin3</artifactId>
+      <groupId>eu.maveniverse.maven.plugins</groupId>
+      <artifactId>nisse-plugin3</artifactId>
     </dependency>
   </dependencies>
 
