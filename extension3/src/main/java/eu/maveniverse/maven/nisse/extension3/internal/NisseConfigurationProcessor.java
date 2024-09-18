@@ -51,6 +51,8 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 .withSystemProperties(request.getSystemProperties())
                 .withUserProperties(request.getUserProperties())
                 .withCurrentWorkingDirectory(Paths.get(request.getWorkingDirectory()))
+                .withSessionRootDirectory(
+                        request.getMultiModuleProjectDirectory().toPath())
                 .build();
         Map<String, String> nisseProperties = nisseManager.createProperties(configuration);
         logger.info("Nisse injecting {} properties into User Properties", nisseProperties.size());

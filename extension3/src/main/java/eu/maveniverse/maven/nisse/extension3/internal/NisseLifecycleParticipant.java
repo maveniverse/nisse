@@ -27,17 +27,23 @@ class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
     }
 
     @Override
-    public void afterProjectsRead(MavenSession session) throws MavenExecutionException {
+    public void afterSessionStart(MavenSession session) throws MavenExecutionException {
         NisseConfiguration configuration = SimpleNisseConfiguration.builder()
                 .withSystemProperties(session.getSystemProperties())
                 .withUserProperties(session.getUserProperties())
                 .withCurrentWorkingDirectory(Paths.get(session.getRequest().getBaseDirectory()))
+                .withSessionRootDirectory(
+                        session.getRequest().getMultiModuleProjectDirectory().toPath())
                 .build();
         for (String inlinedKey : configuration.getInlinedPropertyKeys()) {
             if (inliner.inlinedKeys(session).add(inlinedKey)) {
                 logger.info("Nisse property {} configured for inlining", inlinedKey);
             }
         }
+    }
+
+    @Override
+    public void afterProjectsRead(MavenSession session) throws MavenExecutionException {
         try {
             inliner.mayInlinePom(session, session.getProjects());
         } catch (IOException e) {
