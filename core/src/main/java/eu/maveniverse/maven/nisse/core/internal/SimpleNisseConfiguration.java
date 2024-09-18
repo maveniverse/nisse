@@ -26,16 +26,19 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
     private final Map<String, String> userProperties;
     private final Map<String, String> configuration;
     private final Path currentWorkingDirectory;
+    private final Path sessionRootDirectory;
 
     private SimpleNisseConfiguration(
             Map<String, String> systemProperties,
             Map<String, String> userProperties,
             Map<String, String> configuration,
-            Path currentWorkingDirectory) {
+            Path currentWorkingDirectory,
+            Path sessionRootDirectory) {
         this.systemProperties = requireNonNull(systemProperties, "systemProperties");
         this.userProperties = requireNonNull(userProperties, "userProperties");
         this.configuration = requireNonNull(configuration, "configuration");
         this.currentWorkingDirectory = requireNonNull(currentWorkingDirectory);
+        this.sessionRootDirectory = requireNonNull(sessionRootDirectory);
     }
 
     @Override
@@ -56,6 +59,11 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
     @Override
     public Path getCurrentWorkingDirectory() {
         return currentWorkingDirectory;
+    }
+
+    @Override
+    public Path getSessionRootDirectory() {
+        return sessionRootDirectory;
     }
 
     @Override
@@ -85,16 +93,27 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
         private Map<String, String> systemProperties = new HashMap<>();
         private Map<String, String> userProperties = new HashMap<>();
         private Path currentWorkingDirectory = Paths.get("").toAbsolutePath();
+        private Path sessionRootDirectory = Paths.get("").toAbsolutePath();
 
         public SimpleNisseConfiguration build() {
-            HashMap<String, String> configuration = new HashMap<>();
-            configuration.putAll(systemProperties);
-            configuration.putAll(userProperties);
+            HashMap<String, String> configuration = new HashMap<>(systemProperties);
+            // Broadening support: Maven versions pre 3.9.2 had no means to configure resources
+            // from project. In those case we "backport" session.rootDirectory ONLY
+            // CliRequest.multiModuleProjectDirectory -> session.rootDirectory
+            for (String key : userProperties.keySet()) {
+                String value = userProperties.get(key);
+                if (value != null && value.contains("${session.rootDirectory}")) {
+                    value = value.replace("${session.rootDirectory}", sessionRootDirectory.toString());
+                }
+                configuration.put(key, value);
+            }
+
             return new SimpleNisseConfiguration(
                     Collections.unmodifiableMap(systemProperties),
                     Collections.unmodifiableMap(userProperties),
                     Collections.unmodifiableMap(configuration),
-                    currentWorkingDirectory);
+                    currentWorkingDirectory,
+                    sessionRootDirectory);
         }
 
         public Builder withJavaSystemProperties() {
@@ -137,6 +156,15 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                 this.currentWorkingDirectory = currentWorkingDirectory.toAbsolutePath();
             } else {
                 this.currentWorkingDirectory = Paths.get("");
+            }
+            return this;
+        }
+
+        public Builder withSessionRootDirectory(Path sessionRootDirectory) {
+            if (sessionRootDirectory != null) {
+                this.sessionRootDirectory = sessionRootDirectory.toAbsolutePath();
+            } else {
+                this.sessionRootDirectory = Paths.get("");
             }
             return this;
         }

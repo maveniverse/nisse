@@ -33,6 +33,10 @@ public class InjectPropertiesMojo extends AbstractMojo {
                 .withSystemProperties(mavenSession.getSystemProperties())
                 .withUserProperties(mavenSession.getUserProperties())
                 .withCurrentWorkingDirectory(Paths.get(mavenSession.getRequest().getBaseDirectory()))
+                .withSessionRootDirectory(mavenSession
+                        .getRequest()
+                        .getMultiModuleProjectDirectory()
+                        .toPath())
                 .build();
         Map<String, String> properties = nisseManager.createProperties(configuration);
         getLog().info("Injecting " + properties.size() + " properties");

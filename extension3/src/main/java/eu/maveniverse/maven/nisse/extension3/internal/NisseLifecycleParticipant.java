@@ -32,6 +32,8 @@ class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
                 .withSystemProperties(session.getSystemProperties())
                 .withUserProperties(session.getUserProperties())
                 .withCurrentWorkingDirectory(Paths.get(session.getRequest().getBaseDirectory()))
+                .withSessionRootDirectory(
+                        session.getRequest().getMultiModuleProjectDirectory().toPath())
                 .build();
         for (String inlinedKey : configuration.getInlinedPropertyKeys()) {
             if (inliner.inlinedKeys(session).add(inlinedKey)) {

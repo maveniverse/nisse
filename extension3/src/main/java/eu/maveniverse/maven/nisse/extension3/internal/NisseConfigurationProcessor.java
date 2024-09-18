@@ -22,9 +22,6 @@ import org.apache.maven.cli.CliRequest;
 import org.apache.maven.cli.configuration.ConfigurationProcessor;
 import org.apache.maven.cli.configuration.SettingsXmlConfigurationProcessor;
 import org.apache.maven.rtinfo.RuntimeInformation;
-import org.eclipse.aether.util.version.GenericVersionScheme;
-import org.eclipse.aether.version.InvalidVersionSpecificationException;
-import org.eclipse.aether.version.Version;
 import org.eclipse.sisu.Priority;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,28 +50,14 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
     public void process(CliRequest request) throws Exception {
         settingsXmlConfigurationProcessor.process(request);
 
-        // Broadening support: Maven versions pre 3.9.2 had no means to configure resources
-        // from project. In those case we "backport" session.rootDirectory ONLY
-        // CliRequest.multiModuleProjectDirectory -> session.rootDirectory
-        if (needsTrick()) {
-            String sessionRootDirectory =
-                    request.getMultiModuleProjectDirectory().getAbsolutePath();
-            Properties userProperties = request.getUserProperties();
-            for (String key : userProperties.stringPropertyNames()) {
-                String value = userProperties.getProperty(key);
-                if (value != null && value.contains("${session.rootDirectory}")) {
-                    value = value.replace("${session.rootDirectory}", sessionRootDirectory);
-                }
-                userProperties.setProperty(key, value);
-            }
-        }
-
         // create properties and push what we got into CLI user properties
         Properties userProperties = request.getUserProperties();
         NisseConfiguration configuration = SimpleNisseConfiguration.builder()
                 .withSystemProperties(request.getSystemProperties())
                 .withUserProperties(request.getUserProperties())
                 .withCurrentWorkingDirectory(Paths.get(request.getWorkingDirectory()))
+                .withSessionRootDirectory(
+                        request.getMultiModuleProjectDirectory().toPath())
                 .build();
         Map<String, String> nisseProperties = nisseManager.createProperties(configuration);
         logger.info("Nisse injecting {} properties into User Properties", nisseProperties.size());
@@ -83,16 +66,5 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 request.getUserProperties().setProperty(k, v);
             }
         });
-    }
-
-    private boolean needsTrick() {
-        try {
-            GenericVersionScheme versionScheme = new GenericVersionScheme();
-            Version notNeeds = versionScheme.parseVersion("3.9.2");
-            Version currentMvn = versionScheme.parseVersion(runtimeInformation.getMavenVersion());
-            return notNeeds.compareTo(currentMvn) > -1;
-        } catch (InvalidVersionSpecificationException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

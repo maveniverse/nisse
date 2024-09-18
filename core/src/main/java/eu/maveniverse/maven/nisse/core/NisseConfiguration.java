@@ -47,6 +47,13 @@ public interface NisseConfiguration {
     Path getCurrentWorkingDirectory();
 
     /**
+     * Returns the path that should be considered "session root directory", never {@code null}.
+     * <p>
+     * Note: this is to support older Maven versions than 3.9.2.
+     */
+    Path getSessionRootDirectory();
+
+    /**
      * Returns {@code true} if property source is active (by default they are active). To disable a source use
      * {@code "nisse.source.$source.active=false"} property (defaults to {@code true}).
      */
