@@ -1,6 +1,6 @@
 # Maveniverse Nisse
 
-This is a near-trivial Maven 3 and 4 extension, that provides following services:
+This is a near-trivial Maven 3 extension, that provides following services:
 * extension and plugin: sources properties from different sources and makes them available in build
 * extension only: redoes the [CI Friendly Versions](https://maven.apache.org/maven-ci-friendly.html) feature (not with **Plugin**)
 * extension only: is able to "inline" properties, so there is no need to flatten or any other mumbo-jumbo, it "just works" (not with **Plugin**)
@@ -67,4 +67,5 @@ With extension present, the "CI friendly feature" of Maven is improved as:
 
 ## Usage with Maven 4.0.x
 
-Support is on the way... keep eye on `eu.maveniverse.maven.nisse:plugin4` and `eu.maveniverse.maven.nisse:extension4`.
+Current stance is that Maven 4 will support similar features out of the box.
+Nisse does not work with Maven 4 currently, but things may change.
