@@ -139,6 +139,7 @@ public class JGitPropertySource implements PropertySource {
             }
         } catch (Exception e) {
             logger.error("Exception in JGitPropertySource: {}", e.toString());
+            throw new RuntimeException(e);
         }
         return Collections.unmodifiableMap(result);
     }
