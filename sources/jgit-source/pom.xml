@@ -21,6 +21,10 @@
 
   <name>${project.groupId}:${project.artifactId}</name>
 
+  <properties>
+    <version.resolver>1.9.22</version.resolver>
+  </properties>
+
   <dependencies>
     <!-- Nisse -->
     <dependency>
@@ -39,9 +43,14 @@
       <version>5.13.3.202401111512-r</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.maven</groupId>
-      <artifactId>maven-artifact</artifactId>
-      <version>3.9.9</version>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-api</artifactId>
+      <version>${version.resolver}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven.resolver</groupId>
+      <artifactId>maven-resolver-util</artifactId>
+      <version>${version.resolver}</version>
     </dependency>
     <!-- Test -->
     <dependency>

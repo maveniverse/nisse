@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
 
 /**
  * This class will parse the version based on the given pattern in
- * {@link org.codehaus.mojo.buildhelper.ParseVersionMojo}.
+ * {@code org.codehaus.mojo.buildhelper.ParseVersionMojo}.
  *
  * @author Karl Heinz Marbaise
  * <a href="mailto:khmarbaise@apache.org">khmarbaise@apache.org</a>
@@ -73,7 +73,7 @@ public class VersionInformation {
                 qualifier = matcher.group(9);
             }
             if (qualifier != null) {
-                if (qualifier.trim().length() == 0) {
+                if (qualifier.trim().isEmpty()) {
                     setQualifier(null);
                 } else {
                     setQualifier(qualifier);
@@ -156,8 +156,8 @@ public class VersionInformation {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getMajor());
-        sb.append("." + this.getMinor());
-        sb.append("." + this.getPatch());
+        sb.append(".").append(this.getMinor());
+        sb.append(".").append(this.getPatch());
 
         if (this.getQualifier() != null || this.getBuildNumber() != 0) {
 
