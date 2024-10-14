@@ -9,7 +9,6 @@ package eu.maveniverse.maven.nisse.source.jgit;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.PropertySource;
-import java.io.IOException;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -29,11 +28,11 @@ import org.eclipse.aether.version.Version;
 import org.eclipse.aether.version.VersionScheme;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
-import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,8 +57,8 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_DYNAMIC_VERSION = "dynamicVersion";
 
     /**
-     * Set to {@code true} to enable "dynamic version" feature, it adds the {@link #JGIT_DYNAMIC_VERSION} property
-     * to resulting properties.
+     * Set to {@code true} to enable "dynamic version" feature, it adds the
+     * {@link #JGIT_DYNAMIC_VERSION} property to resulting properties.
      *
      */
     private static final String JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION = "nisse.source.jgit.dynamicVersion";
@@ -108,12 +107,7 @@ public class JGitPropertySource implements PropertySource {
                 .build()) {
 
             if (repository.getDirectory() != null) {
-                RevCommit lastCommit = new Git(repository)
-                        .log()
-                        .setMaxCount(1)
-                        .call()
-                        .iterator()
-                        .next();
+                RevCommit lastCommit = getLastCommit(repository);
 
                 result.put(JGIT_COMMIT, lastCommit.getName());
                 result.put(
@@ -144,6 +138,10 @@ public class JGitPropertySource implements PropertySource {
         return Collections.unmodifiableMap(result);
     }
 
+    private RevCommit getLastCommit(Repository repository) throws NoHeadException, GitAPIException {
+        return Git.wrap(repository).log().setMaxCount(1).call().iterator().next();
+    }
+
     public String resolveDynamicVersion(NisseConfiguration configuration, Repository repository) throws Exception {
         VersionInformation vi;
 
@@ -154,50 +152,33 @@ public class JGitPropertySource implements PropertySource {
                 ? new VersionInformation(useVersion.get())
                 : getVersionFromGit(configuration, repository));
 
-        logger.debug("DVX: {}", vi.toString());
+        logger.debug("dynamic version resvoled to: {}", vi.toString());
+
         return vi.toString();
     }
 
     protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Repository repository)
             throws Exception {
-        RevCommit latestCommit = getLatestCommit(repository);
-        return getVersionFromCommit(configuration, repository, latestCommit);
-    }
-
-    protected RevCommit getLatestCommit(Repository repository) throws Exception {
-        try (RevWalk revWalk = new RevWalk(repository)) {
-            ObjectId head = repository.resolve("HEAD");
-            if (head == null) {
-                throw new Exception("SCM repo has no head/commits.");
-            }
-            return revWalk.parseCommit(head);
-        } catch (IOException e) {
-            throw new Exception("SCM repo most likely has no commits.", e);
-        }
-    }
-
-    protected VersionInformation getVersionFromCommit(
-            NisseConfiguration configuration, Repository repository, RevCommit latestCommit) throws Exception {
         try (Git git = Git.wrap(repository)) {
-            // get tags use semantic version (X.Y.Z or vX.Y.Z) for latest commit
-            List<String> versionTagsForLatestCommit = getVersionedTagsForCommit(git, latestCommit);
-            Optional<VersionInformation> ovi = findHighestVersion(versionTagsForLatestCommit);
-            // use latest commit version tag
-            if (ovi.isPresent()) {
-                return ovi.get();
-            }
+
+            RevCommit lastCommit = getLastCommit(repository);
+            logger.info("last commit: {}", lastCommit.toString());
+
             Iterable<RevCommit> commits = git.log().call();
             int count = 0;
             for (RevCommit commit : commits) {
-                logger.debug("commit #{} {}", count, commit.getShortMessage());
-                versionTagsForLatestCommit = getVersionedTagsForCommit(git, commit);
-                ovi = findHighestVersion(versionTagsForLatestCommit);
+                Optional<VersionInformation> ovi = getHighestVersionTagForCommit(git, commit);
 
                 if (ovi.isPresent()) {
                     VersionInformation vi = ovi.get();
-                    vi.setPatch(vi.getPatch() + 1);
-                    vi.setBuildNumber(count);
-                    return mayAddSnapshotQualifier(configuration, vi);
+
+                    if (commit.equals(lastCommit)) {
+                        return vi;
+                    } else {
+                        vi.setPatch(vi.getPatch() + 1);
+                        vi.setBuildNumber(count);
+                        return mayAddSnapshotQualifier(configuration, vi);
+                    }
                 }
                 count++;
             }
@@ -207,9 +188,30 @@ public class JGitPropertySource implements PropertySource {
         }
     }
 
+    private Optional<VersionInformation> getHighestVersionTagForCommit(Git git, RevCommit commit)
+            throws GitAPIException {
+        // get tags use semantic version (X.Y.Z or vX.Y.Z) for for commit
+        List<String> versionTagsForCommit = getVersionedTagsForCommit(git, commit);
+        logger.debug("commit {} {}: {}", commit.getId(), commit.getShortMessage(), versionTagsForCommit.toString());
+        Optional<VersionInformation> ovi = findHighestVersion(versionTagsForCommit);
+
+        return ovi;
+    }
+
     protected List<String> getVersionedTagsForCommit(Git git, RevCommit commit) throws GitAPIException {
         return git.tagList().call().stream()
-                .filter(tag -> tag.getObjectId().equals(commit.getId()))
+                .filter(tag -> {
+                    try {
+                        Ref peeledRef = git.getRepository().getRefDatabase().peel(tag);
+                        ObjectId id = (peeledRef.getPeeledObjectId() != null
+                                ? peeledRef.getPeeledObjectId()
+                                : tag.getObjectId());
+
+                        return id.equals(commit.getId());
+                    } catch (Exception e) {
+                        return false;
+                    }
+                })
                 .map(Ref::getName)
                 .map(TAG_VERSION_PATTERN::matcher)
                 .filter(m -> m.matches() && m.groupCount() > 0)
