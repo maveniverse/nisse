@@ -50,4 +50,13 @@ class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
             throw new MavenExecutionException("Nisse failed to inline", e);
         }
     }
+
+    @Override
+    public void afterSessionEnd(MavenSession session) throws MavenExecutionException {
+        try {
+            inliner.cleanup(session, session.getProjects());
+        } catch (IOException e) {
+            throw new MavenExecutionException("Nisse failed to inline", e);
+        }
+    }
 }
