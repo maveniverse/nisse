@@ -30,6 +30,8 @@ import org.slf4j.LoggerFactory;
 @Singleton
 @Named
 final class NissePropertyInliner {
+    private static final String INLINED_POM_PATH_KEY = NissePropertyInliner.class.getName() + ".inlined";
+
     private static final String NEEDS_INLINING_COLLECTION = NisseConfiguration.PROPERTY_PREFIX + "needs-inlining";
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -62,14 +64,22 @@ final class NissePropertyInliner {
                 if (isAnyKeyPresent(inlinedProperties, pomPath)) {
                     // needs rewrite
                     logger.info(" * {}:{} needs inlining", mavenProject.getGroupId(), mavenProject.getArtifactId());
-                    Path inlinedPomPath = pomPath.getParent().resolve(".inlined-" + pomPath.getFileName());
+                    Path inlinedPomPath = Files.createTempFile(".inlined", ".xml");
                     Files.createDirectories(inlinedPomPath.getParent());
+                    session.getRepositorySession().getData().set(INLINED_POM_PATH_KEY, inlinedPomPath);
                     inline(pomPath, inlinedPomPath, inlinedProperties);
                     mavenProject.setFile(inlinedPomPath.toFile());
                 }
             }
         } else {
             logger.info("No need for inlining");
+        }
+    }
+
+    void cleanup(MavenSession session, Collection<MavenProject> mavenProjects) throws IOException {
+        Path inlinedPom = (Path) session.getRepositorySession().getData().get(INLINED_POM_PATH_KEY);
+        if (inlinedPom != null) {
+            Files.deleteIfExists(inlinedPom);
         }
     }
 
