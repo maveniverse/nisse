@@ -68,7 +68,7 @@ final class NissePropertyInliner {
                     Files.createDirectories(inlinedPomPath.getParent());
                     session.getRepositorySession().getData().set(INLINED_POM_PATH_KEY, inlinedPomPath);
                     inline(pomPath, inlinedPomPath, inlinedProperties);
-                    mavenProject.setFile(inlinedPomPath.toFile());
+                    mavenProject.setPomFile(inlinedPomPath.toFile());
                 }
             }
         } else {
