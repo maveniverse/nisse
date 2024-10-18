@@ -64,8 +64,7 @@ final class NissePropertyInliner {
                 if (isAnyKeyPresent(inlinedProperties, pomPath)) {
                     // needs rewrite
                     logger.info(" * {}:{} needs inlining", mavenProject.getGroupId(), mavenProject.getArtifactId());
-                    Path inlinedPomPath = Files.createTempFile(".inlined", ".xml");
-                    Files.createDirectories(inlinedPomPath.getParent());
+                    Path inlinedPomPath = pomPath.getParent().resolve(".inlined-" + pomPath.getFileName());
                     session.getRepositorySession().getData().set(INLINED_POM_PATH_KEY, inlinedPomPath);
                     inline(pomPath, inlinedPomPath, inlinedProperties);
                     mavenProject.setPomFile(inlinedPomPath.toFile());
