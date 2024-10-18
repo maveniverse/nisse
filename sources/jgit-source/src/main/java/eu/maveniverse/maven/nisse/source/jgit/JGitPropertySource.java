@@ -162,7 +162,7 @@ public class JGitPropertySource implements PropertySource {
         try (Git git = Git.wrap(repository)) {
 
             RevCommit lastCommit = getLastCommit(repository);
-            logger.info("last commit: {}", lastCommit.toString());
+            logger.debug("last commit: {}", lastCommit.toString());
 
             Iterable<RevCommit> commits = git.log().call();
             int count = 0;
