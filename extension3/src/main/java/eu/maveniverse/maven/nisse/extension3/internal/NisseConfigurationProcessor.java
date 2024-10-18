@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
+import eu.maveniverse.maven.nisse.core.Version;
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
 import java.nio.file.Paths;
 import java.util.Map;
@@ -44,6 +45,8 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
     @Override
     public void process(CliRequest request) throws Exception {
         settingsXmlConfigurationProcessor.process(request);
+
+        logger.info("Maveniverse Nisse {} loaded", Version.version());
 
         // create properties and push what we got into CLI user properties
         Properties userProperties = request.getUserProperties();
