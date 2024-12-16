@@ -25,6 +25,7 @@
 
   <modules>
     <module>extension3-its</module>
+    <module>extension4-its</module>
     <module>plugin3-its</module>
   </modules>
 
