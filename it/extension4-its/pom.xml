@@ -17,19 +17,19 @@
     <version>0.3.4-SNAPSHOT</version>
   </parent>
 
-  <artifactId>extension3-its</artifactId>
+  <artifactId>extension4-its</artifactId>
   <packaging>pom</packaging>
 
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
-    <mavenVersion>3.9.9</mavenVersion>
+    <mavenVersion>4.0.0-rc-1</mavenVersion>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>eu.maveniverse.maven.nisse</groupId>
-      <artifactId>extension3</artifactId>
+      <artifactId>extension4</artifactId>
     </dependency>
   </dependencies>
 
