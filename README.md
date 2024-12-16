@@ -67,5 +67,19 @@ With extension present, the "CI friendly feature" of Maven is improved as:
 
 ## Usage with Maven 4.0.x
 
-Current stance is that Maven 4 will support similar features out of the box.
-Nisse does not work with Maven 4 currently, but things may change.
+Use the Maven4 extension:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<extensions>
+    <extension>
+        <groupId>eu.maveniverse.maven.nisse</groupId>
+        <artifactId>extension4</artifactId>
+        <version>0.3.4</version>
+    </extension>
+</extensions>
+```
+
+Maven4 version 4.0.0-rc-1 and newer are supported.
+
+Maven4 is different than Maven3, so no "inlining" is needed, nor is supported.
