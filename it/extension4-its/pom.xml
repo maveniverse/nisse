@@ -24,6 +24,7 @@
 
   <properties>
     <mavenVersion>4.0.0-rc-1</mavenVersion>
+    <skipInvoker>true</skipInvoker>
   </properties>
 
   <dependencies>
@@ -66,6 +67,7 @@
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-invoker-plugin</artifactId>
             <configuration>
+              <skipInvocation>${skipInvoker}</skipInvocation>
               <mavenHome>${project.build.directory}/dependency/apache-maven-${mavenVersion}</mavenHome>
               <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
               <localRepositoryPath>${project.build.directory}/it-repo</localRepositoryPath>
@@ -94,6 +96,15 @@
           </plugin>
         </plugins>
       </build>
+    </profile>
+    <profile>
+      <id>jdk17+</id>
+      <activation>
+        <jdk>[17,)</jdk>
+      </activation>
+      <properties>
+        <skipInvoker>false</skipInvoker>
+      </properties>
     </profile>
   </profiles>
 </project>
