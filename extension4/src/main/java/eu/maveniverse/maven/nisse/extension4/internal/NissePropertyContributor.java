@@ -13,6 +13,7 @@ import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
 import eu.maveniverse.maven.nisse.core.Version;
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
+import java.util.HashMap;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -43,11 +44,13 @@ final class NissePropertyContributor implements PropertyContributor {
                 .withCurrentWorkingDirectory(protoSession.getTopDirectory())
                 .withSessionRootDirectory(protoSession.getRootDirectory())
                 .build();
+        Map<String, String> result = new HashMap<>(protoSession.getUserProperties());
         Map<String, String> nisseProperties = nisseManager.createProperties(configuration);
         logger.info("Nisse injecting {} properties into User Properties", nisseProperties.size());
         if (Boolean.parseBoolean(protoSession.getUserProperties().getOrDefault("nisse.dump", "false"))) {
             nisseProperties.forEach((k, v) -> logger.info("{}={}", k, v));
         }
-        return nisseProperties;
+        result.putAll(nisseProperties);
+        return result;
     }
 }
