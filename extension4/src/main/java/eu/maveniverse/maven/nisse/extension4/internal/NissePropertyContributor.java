@@ -45,6 +45,9 @@ final class NissePropertyContributor implements PropertyContributor {
                 .build();
         Map<String, String> nisseProperties = nisseManager.createProperties(configuration);
         logger.info("Nisse injecting {} properties into User Properties", nisseProperties.size());
+        if (Boolean.parseBoolean(protoSession.getUserProperties().getOrDefault("nisse.dump", "false"))) {
+            nisseProperties.forEach((k, v) -> logger.info("{}={}", k, v));
+        }
         return nisseProperties;
     }
 }

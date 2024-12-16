@@ -59,6 +59,9 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 .build();
         Map<String, String> nisseProperties = nisseManager.createProperties(configuration);
         logger.info("Nisse injecting {} properties into User Properties", nisseProperties.size());
+        if (Boolean.parseBoolean(request.getUserProperties().getProperty("nisse.dump", "false"))) {
+            nisseProperties.forEach((k, v) -> logger.info("{}={}", k, v));
+        }
         nisseProperties.forEach((k, v) -> {
             if (!userProperties.containsKey(k)) {
                 request.getUserProperties().setProperty(k, v);
