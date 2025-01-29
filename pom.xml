@@ -154,14 +154,14 @@
 
   <repositories>
     <repository>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
       <snapshots>
         <enabled>true</enabled>
         <updatePolicy>daily</updatePolicy>
         <checksumPolicy>fail</checksumPolicy>
       </snapshots>
-      <releases>
-        <enabled>false</enabled>
-      </releases>
       <id>maven-snapshots</id>
       <url>https://repository.apache.org/content/repositories/snapshots/</url>
     </repository>
