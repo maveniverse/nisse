@@ -22,6 +22,10 @@
 
   <name>${project.groupId}:${project.artifactId}</name>
 
+  <properties>
+    <mavenVersion>3.9.9</mavenVersion>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>eu.maveniverse.maven.nisse</groupId>
@@ -36,8 +40,33 @@
         <plugins>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-dependency-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>prepare-maven-distro</id>
+                <goals>
+                  <goal>unpack</goal>
+                </goals>
+                <phase>generate-test-resources</phase>
+                <configuration>
+                  <artifactItems>
+                    <artifactItem>
+                      <groupId>org.apache.maven</groupId>
+                      <artifactId>apache-maven</artifactId>
+                      <version>${mavenVersion}</version>
+                      <classifier>bin</classifier>
+                      <type>zip</type>
+                    </artifactItem>
+                  </artifactItems>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-invoker-plugin</artifactId>
             <configuration>
+              <mavenHome>${project.build.directory}/dependency/apache-maven-${mavenVersion}</mavenHome>
               <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
               <localRepositoryPath>${project.build.directory}/it-repo</localRepositoryPath>
               <cloneClean>true</cloneClean>
