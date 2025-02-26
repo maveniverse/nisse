@@ -72,7 +72,7 @@
     <requireBuildtimeMavenVersion.version>[3.9.9,)</requireBuildtimeMavenVersion.version>
     <requireRuntimeMavenVersion.version>[3.8.8,)</requireRuntimeMavenVersion.version>
 
-    <version.slf4j>1.7.36</version.slf4j>
+    <version.slf4j>2.0.17</version.slf4j>
   </properties>
 
   <dependencyManagement>
