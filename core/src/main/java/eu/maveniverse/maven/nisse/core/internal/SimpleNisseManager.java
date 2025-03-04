@@ -15,6 +15,7 @@ import eu.maveniverse.maven.nisse.core.PropertySource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -32,12 +33,16 @@ class SimpleNisseManager implements NisseManager {
     @Override
     public Map<String, String> createProperties(NisseConfiguration configuration) {
         requireNonNull(configuration, "configuration");
+        BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy =
+                configuration.propertyKeyNamingStrategy();
         HashMap<String, String> properties = new HashMap<>();
         for (PropertySource source : this.sources) {
             if (configuration.isPropertySourceActive(source)) {
-                source.getProperties(configuration)
-                        .forEach((key, value) -> properties.put(
-                                NisseConfiguration.PROPERTY_PREFIX + source.getName() + "." + key, value));
+                source.getProperties(configuration).forEach((key, value) -> {
+                    for (String translated : propertyKeyNamingStrategy.apply(source, key)) {
+                        properties.put(translated, value);
+                    }
+                });
             }
         }
         return properties;

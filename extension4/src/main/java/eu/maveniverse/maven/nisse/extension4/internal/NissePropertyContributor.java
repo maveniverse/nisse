@@ -13,6 +13,8 @@ import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
 import eu.maveniverse.maven.nisse.core.Version;
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
 import javax.inject.Inject;
@@ -36,21 +38,25 @@ final class NissePropertyContributor implements PropertyContributor {
 
     @Override
     public Map<String, String> contribute(ProtoSession protoSession) {
-        logger.info("Maveniverse Nisse {} loaded", Version.version());
-        // create properties and push what we got into CLI user properties
-        NisseConfiguration configuration = SimpleNisseConfiguration.builder()
-                .withSystemProperties(protoSession.getSystemProperties())
-                .withUserProperties(protoSession.getUserProperties())
-                .withCurrentWorkingDirectory(protoSession.getTopDirectory())
-                .withSessionRootDirectory(protoSession.getRootDirectory())
-                .build();
-        Map<String, String> result = new HashMap<>(protoSession.getUserProperties());
-        Map<String, String> nisseProperties = nisseManager.createProperties(configuration);
-        logger.info("Nisse injecting {} properties into User Properties", nisseProperties.size());
-        if (Boolean.parseBoolean(protoSession.getUserProperties().getOrDefault("nisse.dump", "false"))) {
-            nisseProperties.forEach((k, v) -> logger.info("{}={}", k, v));
+        try {
+            logger.info("Maveniverse Nisse {} loaded", Version.version());
+            // create properties and push what we got into CLI user properties
+            NisseConfiguration configuration = SimpleNisseConfiguration.builder()
+                    .withSystemProperties(protoSession.getSystemProperties())
+                    .withUserProperties(protoSession.getUserProperties())
+                    .withCurrentWorkingDirectory(protoSession.getTopDirectory())
+                    .withSessionRootDirectory(protoSession.getRootDirectory())
+                    .build();
+            Map<String, String> result = new HashMap<>(protoSession.getUserProperties());
+            Map<String, String> nisseProperties = nisseManager.createProperties(configuration);
+            logger.info("Nisse injecting {} properties into User Properties", nisseProperties.size());
+            if (Boolean.parseBoolean(protoSession.getUserProperties().getOrDefault("nisse.dump", "false"))) {
+                nisseProperties.forEach((k, v) -> logger.info("{}={}", k, v));
+            }
+            result.putAll(nisseProperties);
+            return result;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Error while creating Nisse configuration", e);
         }
-        result.putAll(nisseProperties);
-        return result;
     }
 }

@@ -10,14 +10,22 @@ package eu.maveniverse.maven.nisse.core.internal;
 import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
+import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.PropertySource;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -27,18 +35,21 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
     private final Map<String, String> configuration;
     private final Path currentWorkingDirectory;
     private final Path sessionRootDirectory;
+    private final BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy;
 
     private SimpleNisseConfiguration(
             Map<String, String> systemProperties,
             Map<String, String> userProperties,
             Map<String, String> configuration,
             Path currentWorkingDirectory,
-            Path sessionRootDirectory) {
+            Path sessionRootDirectory,
+            BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy) {
         this.systemProperties = requireNonNull(systemProperties, "systemProperties");
         this.userProperties = requireNonNull(userProperties, "userProperties");
         this.configuration = requireNonNull(configuration, "configuration");
         this.currentWorkingDirectory = requireNonNull(currentWorkingDirectory);
         this.sessionRootDirectory = requireNonNull(sessionRootDirectory);
+        this.propertyKeyNamingStrategy = requireNonNull(propertyKeyNamingStrategy, "propertyKeyNamingStrategy");
     }
 
     @Override
@@ -79,10 +90,15 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
         String value = getConfiguration().get(key);
         if (value != null) {
             return Stream.of(value.split(",", -1))
-                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .filter(s -> !s.trim().isEmpty())
                     .collect(Collectors.toList());
         }
         return Collections.emptyList();
+    }
+
+    @Override
+    public BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy() {
+        return propertyKeyNamingStrategy;
     }
 
     public static Builder builder() {
@@ -94,8 +110,9 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
         private Map<String, String> userProperties = new HashMap<>();
         private Path currentWorkingDirectory = Paths.get("").toAbsolutePath();
         private Path sessionRootDirectory = Paths.get("").toAbsolutePath();
+        private BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy = null;
 
-        public SimpleNisseConfiguration build() {
+        public SimpleNisseConfiguration build() throws IOException {
             HashMap<String, String> configuration = new HashMap<>(systemProperties);
             // Broadening support: Maven versions pre 3.9.2 had no means to configure resources
             // from project. In those case we "backport" session.rootDirectory ONLY
@@ -108,12 +125,48 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                 configuration.put(key, value);
             }
 
+            // if caller provided naming strategy, use that, otherwise configure ourselves one
+            if (propertyKeyNamingStrategy == null) {
+                ArrayList<BiFunction<PropertySource, String, List<String>>> strategies = new ArrayList<>();
+
+                // translation
+                Path translationTable = sessionRootDirectory.resolve(".mvn").resolve("nisse-translation.properties");
+                if (Files.exists(translationTable)) {
+                    Properties props = new Properties();
+                    try (InputStream inputStream = Files.newInputStream(translationTable)) {
+                        props.load(inputStream);
+                    }
+                    Map<String, List<String>> translation = new HashMap<>();
+                    for (String key : props.stringPropertyNames()) {
+                        List<String> values = Arrays.stream(
+                                        props.getProperty(key).split(","))
+                                .filter(s -> !s.trim().isEmpty())
+                                .collect(Collectors.toList());
+                        translation.put(key, values);
+                    }
+                    strategies.add(PropertyKeyNamingStrategies.translated(
+                            translation,
+                            PropertyKeyNamingStrategies.sourcePrefixed(),
+                            PropertyKeyNamingStrategies.nisseDefault()));
+                } else {
+                    strategies.add(PropertyKeyNamingStrategies.nisseDefault());
+                }
+
+                // compat
+                if (Boolean.parseBoolean(configuration.get("nisse.compat.osDetector"))) {
+                    strategies.add(PropertyKeyNamingStrategies.osDetector());
+                }
+
+                this.propertyKeyNamingStrategy = PropertyKeyNamingStrategies.combine(strategies);
+            }
+
             return new SimpleNisseConfiguration(
                     Collections.unmodifiableMap(systemProperties),
                     Collections.unmodifiableMap(userProperties),
                     Collections.unmodifiableMap(configuration),
                     currentWorkingDirectory,
-                    sessionRootDirectory);
+                    sessionRootDirectory,
+                    propertyKeyNamingStrategy);
         }
 
         public Builder withJavaSystemProperties() {
@@ -165,6 +218,16 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                 this.sessionRootDirectory = sessionRootDirectory.toAbsolutePath();
             } else {
                 this.sessionRootDirectory = Paths.get("");
+            }
+            return this;
+        }
+
+        public Builder withPropertyKeyNamingStrategy(
+                BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy) {
+            if (propertyKeyNamingStrategy != null) {
+                this.propertyKeyNamingStrategy = propertyKeyNamingStrategy;
+            } else {
+                this.propertyKeyNamingStrategy = PropertyKeyNamingStrategies.nisseDefault();
             }
             return this;
         }

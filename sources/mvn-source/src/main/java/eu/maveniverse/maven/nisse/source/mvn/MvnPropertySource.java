@@ -37,8 +37,6 @@ public class MvnPropertySource implements PropertySource {
     private static final String VERSION_PATCH = "patch";
     private static final String VERSION_QUALIFIER = "qualifier";
 
-    private static final String UNKNOWN = "unknown";
-
     @Override
     public String getName() {
         return NAME;

@@ -9,7 +9,9 @@ package eu.maveniverse.maven.nisse.core;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 public interface NisseConfiguration {
     /**
@@ -64,4 +66,9 @@ public interface NisseConfiguration {
      * {@code "nisse.source.inlinedKeys=key1,key2"} property (defaults to empty collection).
      */
     Collection<String> getInlinedPropertyKeys();
+
+    /**
+     * Returns the {@link PropertyKeyNamingStrategies} to apply to published properties.
+     */
+    BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy();
 }
