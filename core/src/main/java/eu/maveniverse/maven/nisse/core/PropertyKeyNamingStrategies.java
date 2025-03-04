@@ -21,6 +21,29 @@ import java.util.stream.Collectors;
  */
 public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, String, List<String>> {
     /**
+     * Combines multiple strategies.
+     */
+    static BiFunction<PropertySource, String, List<String>> combine(
+            List<BiFunction<PropertySource, String, List<String>>> strategies) {
+        requireNonNull(strategies, "strategies");
+        if (strategies.isEmpty()) {
+            throw new IllegalArgumentException("strategies must not be empty");
+        } else if (strategies.size() == 1) {
+            return strategies.get(0);
+        } else {
+            return (propertySource, s) -> {
+                ArrayList<String> result = new ArrayList<>();
+                for (BiFunction<PropertySource, String, List<String>> strategy : strategies) {
+                    result.addAll(strategy.apply(propertySource, s));
+                }
+                return result;
+            };
+        }
+    }
+
+    // strategies
+
+    /**
      * The default naming strategy Nisse applied in existing releases so far.
      * <p>
      * It prefixes keys as {@code "nisse." + $source.name + "." + $key}.
@@ -102,6 +125,20 @@ public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, 
                 result.addAll(mappedKeys);
             }
             return result;
+        };
+    }
+
+    /**
+     * Built-in strategy to provide full compatibility with <a href="https://github.com/trustin/os-maven-plugin">os-maven-plugin</a>
+     * that inspired "os" source.
+     */
+    static BiFunction<PropertySource, String, List<String>> osDetector() {
+        return (propertySource, key) -> {
+            if ("os".equals(propertySource.getName())) {
+                return Collections.singletonList("os.detected." + key);
+            } else {
+                return Collections.emptyList();
+            }
         };
     }
 }

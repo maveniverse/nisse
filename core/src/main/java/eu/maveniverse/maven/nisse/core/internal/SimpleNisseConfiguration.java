@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -124,7 +125,11 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                 configuration.put(key, value);
             }
 
+            // if caller provided naming strategy, use that, otherwise configure ourselves one
             if (propertyKeyNamingStrategy == null) {
+                ArrayList<BiFunction<PropertySource, String, List<String>>> strategies = new ArrayList<>();
+
+                // translation
                 Path translationTable = sessionRootDirectory.resolve(".mvn").resolve("nisse-translation.properties");
                 if (Files.exists(translationTable)) {
                     Properties props = new Properties();
@@ -139,13 +144,20 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                                 .collect(Collectors.toList());
                         translation.put(key, values);
                     }
-                    propertyKeyNamingStrategy = PropertyKeyNamingStrategies.translated(
+                    strategies.add(PropertyKeyNamingStrategies.translated(
                             translation,
                             PropertyKeyNamingStrategies.sourcePrefixed(),
-                            PropertyKeyNamingStrategies.nisseDefault());
+                            PropertyKeyNamingStrategies.nisseDefault()));
                 } else {
-                    propertyKeyNamingStrategy = PropertyKeyNamingStrategies.nisseDefault();
+                    strategies.add(PropertyKeyNamingStrategies.nisseDefault());
                 }
+
+                // compat
+                if (Boolean.parseBoolean(configuration.get("nisse.compat.osDetector"))) {
+                    strategies.add(PropertyKeyNamingStrategies.osDetector());
+                }
+
+                this.propertyKeyNamingStrategy = PropertyKeyNamingStrategies.combine(strategies);
             }
 
             return new SimpleNisseConfiguration(
