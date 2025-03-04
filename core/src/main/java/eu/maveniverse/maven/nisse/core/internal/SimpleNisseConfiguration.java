@@ -17,9 +17,11 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.function.BiFunction;
@@ -32,7 +34,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
     private final Map<String, String> configuration;
     private final Path currentWorkingDirectory;
     private final Path sessionRootDirectory;
-    private final BiFunction<PropertySource, String, String> propertyKeyNamingStrategy;
+    private final BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy;
 
     private SimpleNisseConfiguration(
             Map<String, String> systemProperties,
@@ -40,7 +42,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
             Map<String, String> configuration,
             Path currentWorkingDirectory,
             Path sessionRootDirectory,
-            BiFunction<PropertySource, String, String> propertyKeyNamingStrategy) {
+            BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy) {
         this.systemProperties = requireNonNull(systemProperties, "systemProperties");
         this.userProperties = requireNonNull(userProperties, "userProperties");
         this.configuration = requireNonNull(configuration, "configuration");
@@ -94,7 +96,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
     }
 
     @Override
-    public BiFunction<PropertySource, String, String> propertyKeyNamingStrategy() {
+    public BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy() {
         return propertyKeyNamingStrategy;
     }
 
@@ -107,7 +109,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
         private Map<String, String> userProperties = new HashMap<>();
         private Path currentWorkingDirectory = Paths.get("").toAbsolutePath();
         private Path sessionRootDirectory = Paths.get("").toAbsolutePath();
-        private BiFunction<PropertySource, String, String> propertyKeyNamingStrategy = null;
+        private BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy = null;
 
         public SimpleNisseConfiguration build() throws IOException {
             HashMap<String, String> configuration = new HashMap<>(systemProperties);
@@ -129,8 +131,16 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                     try (InputStream inputStream = Files.newInputStream(translationTable)) {
                         props.load(inputStream);
                     }
+                    Map<String, List<String>> translation = new HashMap<>();
+                    for (String key : props.stringPropertyNames()) {
+                        List<String> values = Arrays.stream(
+                                        props.getProperty(key).split(","))
+                                .filter(s -> !s.trim().isEmpty())
+                                .collect(Collectors.toList());
+                        translation.put(key, values);
+                    }
                     propertyKeyNamingStrategy = PropertyKeyNamingStrategies.translated(
-                            toMap(props),
+                            translation,
                             PropertyKeyNamingStrategies.sourcePrefixed(),
                             PropertyKeyNamingStrategies.nisseDefault());
                 } else {
@@ -201,7 +211,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
         }
 
         public Builder withPropertyKeyNamingStrategy(
-                BiFunction<PropertySource, String, String> propertyKeyNamingStrategy) {
+                BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy) {
             if (propertyKeyNamingStrategy != null) {
                 this.propertyKeyNamingStrategy = propertyKeyNamingStrategy;
             } else {

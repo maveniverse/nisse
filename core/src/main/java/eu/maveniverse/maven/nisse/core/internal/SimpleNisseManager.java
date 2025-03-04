@@ -33,13 +33,16 @@ class SimpleNisseManager implements NisseManager {
     @Override
     public Map<String, String> createProperties(NisseConfiguration configuration) {
         requireNonNull(configuration, "configuration");
-        BiFunction<PropertySource, String, String> propertyKeyNamingStrategy =
+        BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy =
                 configuration.propertyKeyNamingStrategy();
         HashMap<String, String> properties = new HashMap<>();
         for (PropertySource source : this.sources) {
             if (configuration.isPropertySourceActive(source)) {
-                source.getProperties(configuration)
-                        .forEach((key, value) -> properties.put(propertyKeyNamingStrategy.apply(source, key), value));
+                source.getProperties(configuration).forEach((key, value) -> {
+                    for (String translated : propertyKeyNamingStrategy.apply(source, key)) {
+                        properties.put(translated, value);
+                    }
+                });
             }
         }
         return properties;
