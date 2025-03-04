@@ -59,12 +59,20 @@ public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, 
      * Translates properties using provided translation table, if key not found, uses fallback strategy.
      * <p>
      * This function applies {@code lookup} strategy and using result performs a lookup on provided {@code translation}
-     * map. If result is non-null, will be used, otherwise {@code fallback} strategy is used.
+     * map. If key is present, mapping is applied, otherwise {@code fallback} strategy is used.
      * <p>
-     * The property key should be existing key, and value should be the key that existing key should be remapped to.
-     * The value may be comma separated {@code ","} to map one key onto multiple keys. Two special keywords are
-     * supported and MUST be last position of list: {@code +fallback} will append fallback keys as well, and
-     * {@code -fallback} that prevents fallback to be used, so it can filter out keys from publishing.
+     * The property key should be existing key that needs remapping, and value should be the comma separated keys that
+     * existing key should be remapped to. If value is empty, key is unpublished. If value has one or more comma
+     * separated values, the remapped key is published under provided keys. There is special keyword that can be
+     * used as last list element, the {@code +fallback}, that if present, will append fallback keys as well.
+     * <p>
+     * Behaviour in short:
+     * <ul>
+     *     <li>if key is not in the map, fallback is applied</li>
+     *     <li>if key is in map but value is empty, key is unpublished</li>
+     *     <li>if key is in map with non-empty value, key is published under provided values</li>
+     *     <li>if key is in map with non-empty value, and ends with {@code ,+fallback} the fallback is appended</li>
+     * </ul>
      */
     static BiFunction<PropertySource, String, List<String>> translated(
             Map<String, List<String>> translation,
@@ -77,22 +85,22 @@ public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, 
             List<String> lookupKeys = lookup.apply(source, key);
             List<String> result = new ArrayList<>(lookupKeys.size());
             for (String lookupKey : lookupKeys) {
-                List<String> translated = translation.get(lookupKey);
-                if (translated != null) {
-                    result.addAll(translated);
+                List<String> mappedKeys = new ArrayList<>();
+                boolean keyMapped = translation.containsKey(lookupKey);
+                if (keyMapped) {
+                    List<String> translated = translation.get(lookupKey);
+                    if (translated != null) {
+                        mappedKeys.addAll(translated);
+                    }
+                    if (!mappedKeys.isEmpty() && "+fallback".equals(mappedKeys.get(mappedKeys.size() - 1))) {
+                        mappedKeys.addAll(fallback.apply(source, key));
+                    }
+                } else {
+                    mappedKeys.addAll(fallback.apply(source, key));
                 }
+                mappedKeys.removeAll(Collections.singleton("+fallback"));
+                result.addAll(mappedKeys);
             }
-            boolean addFallback = result.isEmpty() || "+fallback".equals(result.get(result.size() - 1));
-            boolean doNotAddFallback = !result.isEmpty() && "-fallback".equals(result.get(result.size() - 1));
-            if (result.isEmpty()) {
-                result.addAll(fallback.apply(source, key));
-            } else {
-                if (addFallback && !doNotAddFallback) {
-                    result.addAll(fallback.apply(source, key));
-                }
-            }
-            result.remove("+fallback");
-            result.remove("-fallback");
             return result;
         };
     }
