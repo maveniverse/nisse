@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.PropertySource;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 public class SimpleNisseManagerTest {
     @Test
-    void smoke() {
+    void smoke() throws IOException {
         Map<String, String> m1 = new HashMap<>();
         m1.put("one", "en");
         m1.put("two", "to");

@@ -1,6 +1,7 @@
 package eu.maveniverse.maven.nisse.source.mvn;
 
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
@@ -8,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 public class MvnPropertySourceTest {
     @Test
-    void smoke() {
+    void smoke() throws IOException {
         Map<String, String> up = new HashMap<>();
 
         up.clear();
