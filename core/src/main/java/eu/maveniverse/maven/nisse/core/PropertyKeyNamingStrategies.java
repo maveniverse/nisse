@@ -60,6 +60,11 @@ public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, 
      * <p>
      * This function applies {@code lookup} strategy and using result performs a lookup on provided {@code translation}
      * map. If result is non-null, will be used, otherwise {@code fallback} strategy is used.
+     * <p>
+     * The property key should be existing key, and value should be the key that existing key should be remapped to.
+     * The value may be comma separated {@code ","} to map one key onto multiple keys. Two special keywords are
+     * supported and MUST be last position of list: {@code +fallback} will append fallback keys as well, and
+     * {@code -fallback} that prevents fallback to be used, so it can filter out keys from publishing.
      */
     static BiFunction<PropertySource, String, List<String>> translated(
             Map<String, List<String>> translation,
@@ -77,9 +82,17 @@ public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, 
                     result.addAll(translated);
                 }
             }
+            boolean addFallback = result.isEmpty() || "+fallback".equals(result.get(result.size() - 1));
+            boolean doNotAddFallback = !result.isEmpty() && "-fallback".equals(result.get(result.size() - 1));
             if (result.isEmpty()) {
-                result = fallback.apply(source, key);
+                result.addAll(fallback.apply(source, key));
+            } else {
+                if (addFallback && !doNotAddFallback) {
+                    result.addAll(fallback.apply(source, key));
+                }
             }
+            result.remove("+fallback");
+            result.remove("-fallback");
             return result;
         };
     }
