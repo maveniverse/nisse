@@ -1,85 +1,44 @@
 # Maveniverse Nisse
 
-This is a near-trivial Maven extension, that provides following services:
-* extension and plugin: sources properties from different sources and makes them available in build
-* extension only: redoes the [CI Friendly Versions](https://maven.apache.org/maven-ci-friendly.html) feature (not with **Plugin**)
-* extension only: is able to "inline" properties, so there is no need to flatten or any other mumbo-jumbo, it "just works" (not with **Plugin**)
+Requirements:
+* Java: 8+
+* Maven: 3.8.x+
 
-## Implemented Sources
+Nisse is a suite of extensions and plugins for Maven 3 and Maven 4 that provides following:
+* in Maven 3 "fixes" the CI Friendly version support, as out of the box implementation is flaky (allows you to deploy broken POMs).
+* provides "property sources", aggregates properties got from them, it may rename/translate property keys, and publishes properties to Maven.
+* provides drop-in-replacement for discontinued [OS Detector plugin](https://github.com/trustin/os-maven-plugin).
+* is extensible, one can add new property sources as needed.
 
-Currently there are 4 sources just to showcase things:
-* file-source: it reads up a Java Properties File from disk
-* jgit-source: it uses Eclipse JGit to get some git related data
-* mvn-source: it provides major/minor/patch versions of currently used Maven
-* os-source: heavily inspired by https://github.com/trustin/os-maven-plugin (and annoyed that user does not maintain it, so code is not reusable nor works with Maven4) 
+## Usage with Maven
 
-Look into ITs for examples.
-
-## Usage with Maven 3.9.x and 3.8.x
-
-Nisse offers a Plugin and a Core Extension. With using Plugin only, features you can use is LIMITED to properties
-injection into Project properties (a la [properties-maven-plugin](https://www.mojohaus.org/properties-maven-plugin/) from Mojohaus).
-To use Nisse Plugin, add it to your POM like this:
-
-```xml
-  <plugin>
-    <groupId>eu.maveniverse.maven.nisse</groupId>
-    <artifactId>plugin3</artifactId>
-    <version>${version.nisse}</version>
-    <executions>
-        <execution>
-            <id>inject-properties</id>
-            <goals>
-                <goal>inject-properties</goal>
-            </goals>
-            <phase>validate</phase>
-        </execution>
-    </executions>
-  </plugin>
-```
-
-The Nisse Extension `extension3` is more powerful, to use it add this to your `.mvn/extensions.xml` file:
+There are 3 extensions: `extension3` meant to be used with Maven 3 exclusively (does not work in Maven 4), then
+`extension4` meant to be used with Maven 4 exclusively (does not work in Maven 3), and finally `extension`, that
+works in both, Maven 3 and Maven 4. Last is the recommended extension to be used. Use it like this:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <extensions>
     <extension>
         <groupId>eu.maveniverse.maven.nisse</groupId>
-        <artifactId>extension3</artifactId>
+        <artifactId>extension</artifactId>
         <version>${version.nisse}</version>
     </extension>
 </extensions>
 ```
 
-And then you can inspect what is being added to user properties by running Toolbox `dump`:
+Note: Nisse can be used as "plugin only" as well, but functionality in this case is limited ONLY to providing 
+properties for interpolation (within a project).
 
-```
-$ mvn eu.maveniverse.maven.plugins:toolbox:dump -Dverbose -N
-```
+If you intend to use Nisse as OS Detector "drop in replacement", just add Nisse as extension to your project and
+specify `-Dnisse.compat.osDetector` on CLI or better, in `.mvn/maven.config` file.
 
-Look for "USER PROPERTIES" section. Nisse injected some properties for you as they were user properties.
-Moreover, you are free to use them as version (ie. `<version>${nisse.jgit.commit}</version>`) and look
-what happens. Oh, and just install/deploy as usual, no need for any mumbo-jumbo.
+## Implemented Sources
 
-With extension present, the "CI friendly feature" of Maven is improved as:
-* it allows ANY expression in version, as long it is defined (effective POM will not have expression left)
-* there is no need to use flatten plugin to install/deploy, as version used expressions are inlined in POM.
+There are 4 sources provided out of the box:
+* `file-source`: it reads up a Java Properties File from disk and publishes that
+* `jgit-source`: it uses Eclipse JGit to get some git related data
+* `mvn-source`: it provides major/minor/patch versions of currently used Maven (note: Maven 4 already provides this from core)
+* `os-source`: heavily inspired by [OS Detector](https://github.com/trustin/os-maven-plugin) and made reusable
 
-## Usage with Maven 4.0.x
-
-Use the Maven4 extension:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<extensions>
-    <extension>
-        <groupId>eu.maveniverse.maven.nisse</groupId>
-        <artifactId>extension4</artifactId>
-        <version>0.3.4</version>
-    </extension>
-</extensions>
-```
-
-Maven4 version 4.0.0-rc-1 and newer are supported.
-
-Maven4 is different than Maven3, so no "inlining" is needed, nor is supported.
+Look into ITs for usage examples.
