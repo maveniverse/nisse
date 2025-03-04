@@ -23,7 +23,7 @@
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
-    <mavenVersion>4.0.0-rc-3-SNAPSHOT</mavenVersion>
+    <mavenVersion>4.0.0-rc-2</mavenVersion>
     <skipInvoker>true</skipInvoker>
   </properties>
 
@@ -78,6 +78,8 @@
               <preBuildHookScript>setup</preBuildHookScript>
               <postBuildHookScript>verify</postBuildHookScript>
               <addTestClassPath>false</addTestClassPath>
+              <!-- TODO: This works ONLY with Maven 4.0.0-rc-3+ -->
+              <invokerTest>!ci-friendly</invokerTest>
             </configuration>
             <executions>
               <execution>
