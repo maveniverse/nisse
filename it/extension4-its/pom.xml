@@ -23,7 +23,6 @@
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
-    <mavenVersion>4.0.0-rc-3</mavenVersion>
     <skipInvoker>true</skipInvoker>
   </properties>
 
@@ -54,7 +53,7 @@
                     <artifactItem>
                       <groupId>org.apache.maven</groupId>
                       <artifactId>apache-maven</artifactId>
-                      <version>${mavenVersion}</version>
+                      <version>${maven4Version}</version>
                       <classifier>bin</classifier>
                       <type>zip</type>
                     </artifactItem>
@@ -68,7 +67,7 @@
             <artifactId>maven-invoker-plugin</artifactId>
             <configuration>
               <skipInvocation>${skipInvoker}</skipInvocation>
-              <mavenHome>${project.build.directory}/dependency/apache-maven-${mavenVersion}</mavenHome>
+              <mavenHome>${project.build.directory}/dependency/apache-maven-${maven4Version}</mavenHome>
               <cloneProjectsTo>${project.build.directory}/it</cloneProjectsTo>
               <localRepositoryPath>${project.build.directory}/it-repo</localRepositoryPath>
               <cloneClean>true</cloneClean>
