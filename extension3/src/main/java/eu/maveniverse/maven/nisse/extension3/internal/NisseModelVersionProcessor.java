@@ -35,7 +35,10 @@ final class NisseModelVersionProcessor implements ModelVersionProcessor {
 
     @Override
     public boolean isValidProperty(String property) {
-        MavenSession session = this.sessionProvider.get();
+        MavenSession session = getSession();
+        if (session == null) {
+            return false;
+        }
         boolean valid = property.startsWith(NisseConfiguration.PROPERTY_PREFIX)
                 && session.getRequest().getUserProperties().containsKey(property);
         if (valid) {
@@ -46,10 +49,21 @@ final class NisseModelVersionProcessor implements ModelVersionProcessor {
 
     @Override
     public void overwriteModelProperties(Properties modelProperties, ModelBuildingRequest request) {
-        MavenSession session = this.sessionProvider.get();
+        MavenSession session = getSession();
+        if (session == null) {
+            return;
+        }
         for (String inlinedKey : inliner.inlinedKeys(session)) {
             modelProperties.setProperty(
                     inlinedKey, session.getRequest().getUserProperties().getProperty(inlinedKey));
+        }
+    }
+
+    private MavenSession getSession() {
+        try {
+            return this.sessionProvider.get();
+        } catch (com.google.inject.OutOfScopeException e) {
+            return null;
         }
     }
 }
