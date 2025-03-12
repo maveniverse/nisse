@@ -58,9 +58,9 @@ final class NisseModelVersionProcessor implements ModelVersionProcessor {
         } catch (Exception e) {
             // ignore; this means we were invoked outside of session
             if (logger.isDebugEnabled()) {
-                logger.warn("overwriteModelProperties: failed, called out of session?", e);
+                logger.warn("NisseModelVersionProcessor.overwriteModelProperties: failed, called out of session?", e);
             } else {
-                logger.warn("overwriteModelProperties: failed, called out of session?");
+                logger.warn("NisseModelVersionProcessor.overwriteModelProperties: failed, called out of session?");
             }
         }
     }
