@@ -19,11 +19,14 @@ import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.building.ModelBuildingRequest;
 import org.apache.maven.model.interpolation.ModelVersionProcessor;
 import org.eclipse.sisu.Priority;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Singleton
 @Named
 @Priority(200)
 final class NisseModelVersionProcessor implements ModelVersionProcessor {
+    private final Logger logger = LoggerFactory.getLogger(NisseModelVersionProcessor.class);
     private final Provider<MavenSession> sessionProvider;
     private final NissePropertyInliner inliner;
 
@@ -46,10 +49,19 @@ final class NisseModelVersionProcessor implements ModelVersionProcessor {
 
     @Override
     public void overwriteModelProperties(Properties modelProperties, ModelBuildingRequest request) {
-        MavenSession session = this.sessionProvider.get();
-        for (String inlinedKey : inliner.inlinedKeys(session)) {
-            modelProperties.setProperty(
-                    inlinedKey, session.getRequest().getUserProperties().getProperty(inlinedKey));
+        try {
+            MavenSession session = this.sessionProvider.get();
+            for (String inlinedKey : inliner.inlinedKeys(session)) {
+                modelProperties.setProperty(
+                        inlinedKey, session.getRequest().getUserProperties().getProperty(inlinedKey));
+            }
+        } catch (Exception e) {
+            // ignore; this means we were invoked outside of session
+            if (logger.isDebugEnabled()) {
+                logger.warn("NisseModelVersionProcessor.overwriteModelProperties: failed, called out of session?", e);
+            } else {
+                logger.warn("NisseModelVersionProcessor.overwriteModelProperties: failed, called out of session?");
+            }
         }
     }
 }
