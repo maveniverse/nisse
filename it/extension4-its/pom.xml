@@ -23,7 +23,7 @@
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
-    <mavenVersion>4.0.0-rc-2</mavenVersion>
+    <mavenVersion>4.0.0-rc-3</mavenVersion>
     <skipInvoker>true</skipInvoker>
   </properties>
 
