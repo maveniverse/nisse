@@ -29,6 +29,7 @@ import org.eclipse.aether.version.VersionScheme;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoHeadException;
+import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
@@ -104,6 +105,7 @@ public class JGitPropertySource implements PropertySource {
         try (Repository repository = new FileRepositoryBuilder()
                 .readEnvironment()
                 .findGitDir(configuration.getCurrentWorkingDirectory().toFile())
+                .setMustExist(true)
                 .build()) {
 
             if (repository.getDirectory() != null) {
@@ -131,6 +133,8 @@ public class JGitPropertySource implements PropertySource {
                     result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, repository));
                 }
             }
+        } catch (RepositoryNotFoundException | IllegalArgumentException e) {
+            logger.debug("Seems this is not a git checkout; ignoring property source {}", NAME, e);
         } catch (Exception e) {
             logger.error("Exception in JGitPropertySource: {}", e.toString());
             throw new RuntimeException(e);
