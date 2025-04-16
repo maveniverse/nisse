@@ -53,7 +53,7 @@ final class NissePropertyContributor implements PropertyContributor {
             if (Boolean.parseBoolean(protoSession.getUserProperties().getOrDefault("nisse.dump", "false"))) {
                 nisseProperties.forEach((k, v) -> logger.info("{}={}", k, v));
             }
-            result.putAll(nisseProperties);
+            nisseProperties.forEach(result::putIfAbsent);
             return result;
         } catch (IOException e) {
             throw new UncheckedIOException("Error while creating Nisse configuration", e);
