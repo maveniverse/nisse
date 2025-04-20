@@ -19,7 +19,7 @@
 
   <groupId>eu.maveniverse.maven.nisse</groupId>
   <artifactId>nisse</artifactId>
-  <version>0.4.3-SNAPSHOT</version>
+  <version>0.4.3</version>
   <packaging>pom</packaging>
 
   <name>${project.groupId}:${project.artifactId}</name>
@@ -47,7 +47,7 @@
   <scm>
     <connection>scm:git:git@github.com:maveniverse/nisse.git</connection>
     <developerConnection>scm:git:git@github.com:maveniverse/nisse.git</developerConnection>
-    <tag>HEAD</tag>
+    <tag>release-0.4.3</tag>
     <url>https://github.com/maveniverse/nisse</url>
   </scm>
 
@@ -62,7 +62,7 @@
   </ciManagement>
 
   <properties>
-    <project.build.outputTimestamp>2025-04-16T16:11:10Z</project.build.outputTimestamp>
+    <project.build.outputTimestamp>2025-04-20T14:22:17Z</project.build.outputTimestamp>
 
     <!--
     Build time: latest stable Maven and latest Java LTS.
