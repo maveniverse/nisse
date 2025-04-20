@@ -69,7 +69,7 @@
     Run time: "not so old" Maven (3.6.3+) and latest Java LTS.
     -->
     <maven.compiler.release>8</maven.compiler.release>
-    <requireRuntimeMavenVersion.version>[3.8.8,)</requireRuntimeMavenVersion.version>
+    <requireRuntimeMavenVersion.range>[3.8.8,)</requireRuntimeMavenVersion.range>
 
     <!-- Maven 3 and 4 versions -->
     <maven3Version>3.9.9</maven3Version>
@@ -160,21 +160,6 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
-
-  <repositories>
-    <repository>
-      <releases>
-        <enabled>false</enabled>
-      </releases>
-      <snapshots>
-        <enabled>true</enabled>
-        <updatePolicy>daily</updatePolicy>
-        <checksumPolicy>fail</checksumPolicy>
-      </snapshots>
-      <id>maven-snapshots</id>
-      <url>https://repository.apache.org/content/repositories/snapshots/</url>
-    </repository>
-  </repositories>
 
   <build>
     <pluginManagement>

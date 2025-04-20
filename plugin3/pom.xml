@@ -108,8 +108,8 @@
         <artifactId>maven-plugin-plugin</artifactId>
         <configuration>
           <goalPrefix>nisse</goalPrefix>
-          <requiredMavenVersion>3.6.3</requiredMavenVersion>
-          <requiredJavaVersion>8</requiredJavaVersion>
+          <requiredMavenVersion>${requireRuntimeMavenVersion.range}</requiredMavenVersion>
+          <requiredJavaVersion>${requireRuntimeJavaVersion.range}</requiredJavaVersion>
         </configuration>
       </plugin>
     </plugins>
