@@ -69,7 +69,7 @@
     Run time: "not so old" Maven (3.6.3+) and latest Java LTS.
     -->
     <maven.compiler.release>8</maven.compiler.release>
-    <requireRuntimeMavenVersion.range>[3.8.8,)</requireRuntimeMavenVersion.range>
+    <requireRuntimeMavenVersion.range>[3.8,)</requireRuntimeMavenVersion.range>
 
     <!-- Maven 3 and 4 versions -->
     <maven3Version>3.9.9</maven3Version>
@@ -126,6 +126,12 @@
         <groupId>eu.maveniverse.maven.plugins</groupId>
         <artifactId>nisse-plugin3</artifactId>
         <version>${project.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>eu.maveniverse.maven.shared</groupId>
+        <artifactId>extension</artifactId>
+        <version>0.1.3</version>
       </dependency>
 
       <!-- Logging (except API, runtime only) -->
