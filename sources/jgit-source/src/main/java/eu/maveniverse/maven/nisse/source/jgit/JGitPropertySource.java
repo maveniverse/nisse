@@ -128,7 +128,7 @@ public class JGitPropertySource implements PropertySource {
                 result.put(
                         JGIT_DATE_ISO_8601,
                         ZonedDateTime.ofInstant(commitTime, ZoneId.of("UTC"))
-                                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX")));
+                                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssX")));
                 result.put(
                         JGIT_COMMITTER,
                         lastCommit.getCommitterIdent().toExternalString().split(">")[0] + ">");
