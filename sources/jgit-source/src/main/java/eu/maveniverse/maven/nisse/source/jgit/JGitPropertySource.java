@@ -81,6 +81,22 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_CONF_SYSTEM_PROPERTY_USE_VERSION = "nisse.source.jgit.useVersion";
 
     /**
+     * Configure the timestamp format for the date property. Supports named patterns:
+     * - "git" (default): EEE MMM dd HH:mm:ss yyyy Z
+     * - "iso8601": yyyy-MM-dd'T'HH:mm:ss'Z' (UTC)
+     * - "iso8601-offset": yyyy-MM-dd'T'HH:mm:ssXXX (with timezone offset)
+     * - "custom": use the pattern specified in nisse.source.jgit.dateFormat.pattern
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_DATE_FORMAT = "nisse.source.jgit.dateFormat";
+
+    /**
+     * Custom date format pattern when dateFormat is set to "custom".
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_DATE_FORMAT_PATTERN = "nisse.source.jgit.dateFormat.pattern";
+
+    private static final String DEFAULT_DATE_FORMAT = "git";
+
+    /**
      * Pattern for standard semantic versions, with an optional {@code "v"} prefix.
      */
     protected static final Pattern TAG_VERSION_PATTERN = Pattern.compile("refs/tags/v?((\\d+\\.\\d+\\.\\d+)(.*))");
@@ -112,15 +128,7 @@ public class JGitPropertySource implements PropertySource {
                 RevCommit lastCommit = getLastCommit(repository);
 
                 result.put(JGIT_COMMIT, lastCommit.getName());
-                result.put(
-                        JGIT_DATE,
-                        ZonedDateTime.ofInstant(
-                                        Instant.ofEpochSecond(lastCommit.getCommitTime()),
-                                        lastCommit
-                                                .getAuthorIdent()
-                                                .getTimeZone()
-                                                .toZoneId())
-                                .format(DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z")));
+                result.put(JGIT_DATE, formatCommitDate(configuration, lastCommit));
                 result.put(
                         JGIT_COMMITTER,
                         lastCommit.getCommitterIdent().toExternalString().split(">")[0] + ">");
@@ -144,6 +152,76 @@ public class JGitPropertySource implements PropertySource {
 
     private RevCommit getLastCommit(Repository repository) throws NoHeadException, GitAPIException {
         return Git.wrap(repository).log().setMaxCount(1).call().iterator().next();
+    }
+
+    /**
+     * Formats the commit date according to the configured format.
+     *
+     * @param configuration the Nisse configuration
+     * @param commit the commit to format the date for
+     * @return the formatted date string
+     */
+    private String formatCommitDate(NisseConfiguration configuration, RevCommit commit) {
+        DateTimeFormatter formatter = resolveDateTimeFormatter(configuration);
+        String dateFormat = configuration
+                .getConfiguration()
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DATE_FORMAT, DEFAULT_DATE_FORMAT);
+
+        ZonedDateTime commitDateTime = ZonedDateTime.ofInstant(
+                Instant.ofEpochSecond(commit.getCommitTime()),
+                commit.getAuthorIdent().getTimeZone().toZoneId());
+
+        // For ISO-8601 format, convert to UTC
+        if ("iso8601".equalsIgnoreCase(dateFormat)) {
+            commitDateTime = commitDateTime.withZoneSameInstant(java.time.ZoneOffset.UTC);
+        }
+
+        return commitDateTime.format(formatter);
+    }
+
+    /**
+     * Resolves the DateTimeFormatter based on the configuration.
+     *
+     * @param configuration the Nisse configuration
+     * @return the configured DateTimeFormatter
+     */
+    private DateTimeFormatter resolveDateTimeFormatter(NisseConfiguration configuration) {
+        String dateFormat = configuration
+                .getConfiguration()
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DATE_FORMAT, DEFAULT_DATE_FORMAT);
+
+        switch (dateFormat.toLowerCase()) {
+            case "git":
+                return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z");
+            case "iso8601":
+                return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+            case "iso8601-offset":
+                return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX");
+            case "custom":
+                String customPattern =
+                        configuration.getConfiguration().get(JGIT_CONF_SYSTEM_PROPERTY_DATE_FORMAT_PATTERN);
+                if (customPattern != null && !customPattern.trim().isEmpty()) {
+                    try {
+                        return DateTimeFormatter.ofPattern(customPattern);
+                    } catch (IllegalArgumentException e) {
+                        logger.warn(
+                                "Invalid custom date format pattern '{}', falling back to default 'git' format",
+                                customPattern,
+                                e);
+                        return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z");
+                    }
+                } else {
+                    logger.warn(
+                            "Custom date format specified but no pattern provided via '{}', falling back to default 'git' format",
+                            JGIT_CONF_SYSTEM_PROPERTY_DATE_FORMAT_PATTERN);
+                    return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z");
+                }
+            default:
+                logger.warn(
+                        "Unknown date format '{}', falling back to default 'git' format. Supported formats: git, iso8601, iso8601-offset, custom",
+                        dateFormat);
+                return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z");
+        }
     }
 
     public String resolveDynamicVersion(NisseConfiguration configuration, Repository repository) throws Exception {
