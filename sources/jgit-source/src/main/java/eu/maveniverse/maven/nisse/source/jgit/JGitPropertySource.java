@@ -10,7 +10,6 @@ package eu.maveniverse.maven.nisse.source.jgit;
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.PropertySource;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
@@ -51,8 +50,6 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_COMMIT = "commit";
 
     private static final String JGIT_DATE = "date";
-
-    private static final String JGIT_DATE_ISO_8601 = "dateIso8601";
 
     private static final String JGIT_AUTHOR = "author";
 
@@ -115,20 +112,15 @@ public class JGitPropertySource implements PropertySource {
                 RevCommit lastCommit = getLastCommit(repository);
 
                 result.put(JGIT_COMMIT, lastCommit.getName());
-                Instant commitTime = Instant.ofEpochSecond(lastCommit.getCommitTime());
                 result.put(
                         JGIT_DATE,
                         ZonedDateTime.ofInstant(
-                                        commitTime,
+                                        Instant.ofEpochSecond(lastCommit.getCommitTime()),
                                         lastCommit
                                                 .getAuthorIdent()
                                                 .getTimeZone()
                                                 .toZoneId())
                                 .format(DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z")));
-                result.put(
-                        JGIT_DATE_ISO_8601,
-                        ZonedDateTime.ofInstant(commitTime, ZoneId.of("UTC"))
-                                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssX")));
                 result.put(
                         JGIT_COMMITTER,
                         lastCommit.getCommitterIdent().toExternalString().split(">")[0] + ">");
