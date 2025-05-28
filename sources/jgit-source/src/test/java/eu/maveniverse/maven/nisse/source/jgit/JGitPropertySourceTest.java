@@ -65,7 +65,7 @@ public class JGitPropertySourceTest {
             System.out.println("ISO-8601 with offset date format: " + dateValue);
             // ISO-8601 with offset format should match: yyyy-MM-ddTHH:mm:ss+XX:XX
             // Example: 2024-05-27T18:20:45+02:00
-            assertTrue(dateValue.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[+-]\\d{2}:\\d{2}"));
+            assertTrue(dateValue.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[+-]\\d{2}:\\d{2}"), dateValue);
         }
     }
 
