@@ -14,7 +14,7 @@
   <parent>
     <groupId>eu.maveniverse.maven.parent</groupId>
     <artifactId>parent</artifactId>
-    <version>38</version>
+    <version>39</version>
   </parent>
 
   <groupId>eu.maveniverse.maven.nisse</groupId>
@@ -72,8 +72,8 @@
     <requireRuntimeMavenVersion.range>[3.8,)</requireRuntimeMavenVersion.range>
 
     <!-- Maven 3 and 4 versions -->
-    <maven3Version>3.9.9</maven3Version>
-    <maven3ResolverVersion>1.9.22</maven3ResolverVersion>
+    <maven3Version>3.9.10</maven3Version>
+    <maven3ResolverVersion>1.9.23</maven3ResolverVersion>
     <maven4Version>4.0.0-rc-3</maven4Version>
 
     <version.slf4j>1.7.36</version.slf4j>
