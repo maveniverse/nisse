@@ -81,6 +81,16 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_CONF_SYSTEM_PROPERTY_USE_VERSION = "nisse.source.jgit.useVersion";
 
     /**
+     * Pattern for version hint tags. Use ${version} as placeholder for the version part.
+     * Default is "${version}-SNAPSHOT" which matches tags like "4.1.0-SNAPSHOT".
+     * Can be customized to patterns like "hint-${version}" or "next-${version}".
+     *
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN = "nisse.source.jgit.versionHintPattern";
+
+    private static final String DEFAULT_VERSION_HINT_PATTERN = "${version}-SNAPSHOT";
+
+    /**
      * Configure the timestamp format for the date property. Supports named patterns:
      * - "git" (default): EEE MMM dd HH:mm:ss yyyy Z
      * - "iso8601": yyyy-MM-dd'T'HH:mm:ss'Z' (UTC)
@@ -230,11 +240,22 @@ public class JGitPropertySource implements PropertySource {
         Optional<String> useVersion =
                 Optional.ofNullable(configuration.getConfiguration().get(JGIT_CONF_SYSTEM_PROPERTY_USE_VERSION));
 
-        vi = (useVersion.isPresent()
-                ? new VersionInformation(useVersion.get())
-                : getVersionFromGit(configuration, repository));
+        if (useVersion.isPresent()) {
+            vi = new VersionInformation(useVersion.get());
+            logger.debug("Using explicit version from useVersion property: {}", useVersion.get());
+        } else {
+            // Try to find version hint tags first
+            Optional<String> versionHint = findVersionHint(configuration, repository);
+            if (versionHint.isPresent()) {
+                vi = new VersionInformation(versionHint.get());
+                logger.debug("Using version hint from tag: {}", versionHint.get());
+            } else {
+                vi = getVersionFromGit(configuration, repository);
+                logger.debug("Using version resolved from git history");
+            }
+        }
 
-        logger.debug("dynamic version resvoled to: {}", vi.toString());
+        logger.debug("dynamic version resolved to: {}", vi.toString());
 
         return vi.toString();
     }
@@ -325,5 +346,76 @@ public class JGitPropertySource implements PropertySource {
             vi.setQualifier("SNAPSHOT");
         }
         return vi;
+    }
+
+    /**
+     * Find version hint from tags matching the configured pattern.
+     * Version hint tags provide a way to specify the next version without requiring
+     * environment variable changes, making builds more reproducible.
+     *
+     * @param configuration The Nisse configuration
+     * @param repository The git repository
+     * @return Optional version string extracted from hint tags
+     * @throws Exception if git operations fail
+     */
+    protected Optional<String> findVersionHint(NisseConfiguration configuration, Repository repository)
+            throws Exception {
+        try (Git git = Git.wrap(repository)) {
+            String hintPattern = configuration
+                    .getConfiguration()
+                    .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN, DEFAULT_VERSION_HINT_PATTERN);
+
+            List<String> hintVersions = findVersionHintTags(git, hintPattern);
+            logger.debug("Found version hint tags: {}", hintVersions);
+
+            return findHighestVersionFromHints(hintVersions);
+        } catch (GitAPIException e) {
+            throw new Exception("Error reading version hint tags from Git.", e);
+        }
+    }
+
+    /**
+     * Find all tags that match the version hint pattern and extract versions from them.
+     *
+     * @param git The git instance
+     * @param hintPattern The pattern to match (e.g., "${version}-SNAPSHOT")
+     * @return List of version strings extracted from matching tags
+     * @throws GitAPIException if git operations fail
+     */
+    protected List<String> findVersionHintTags(Git git, String hintPattern) throws GitAPIException {
+        // Convert hint pattern to regex pattern
+        // ${version} becomes a capturing group for semantic version
+        // We need to be careful about the order of replacements to avoid double-escaping
+
+        // First, escape special regex characters in the pattern (except the placeholder)
+        String regexPattern = hintPattern
+                .replace(".", "\\.") // Escape literal dots
+                .replace("-", "\\-"); // Escape literal dashes
+
+        // Then replace the placeholder with the version regex (dots already escaped in target)
+        regexPattern = regexPattern.replace("${version}", "(\\d+\\.\\d+\\.\\d+)");
+
+        Pattern hintTagPattern = Pattern.compile("refs/tags/v?" + regexPattern);
+        logger.debug("Using version hint regex pattern: {}", hintTagPattern.pattern());
+
+        return git.tagList().call().stream()
+                .map(Ref::getName)
+                .map(hintTagPattern::matcher)
+                .filter(m -> m.matches() && m.groupCount() > 0)
+                .map(m -> m.group(1)) // Extract the version part
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Find the highest version from the list of version hint strings.
+     *
+     * @param hintVersions List of version strings from hint tags
+     * @return Optional highest version string
+     */
+    protected Optional<String> findHighestVersionFromHints(List<String> hintVersions) {
+        return hintVersions.stream()
+                .map(this::version)
+                .max(Comparator.comparing(version -> version))
+                .map(Version::toString);
     }
 }
