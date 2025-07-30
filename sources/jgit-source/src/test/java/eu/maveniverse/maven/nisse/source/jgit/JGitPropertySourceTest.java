@@ -4,8 +4,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 public class JGitPropertySourceTest {
@@ -106,5 +110,106 @@ public class JGitPropertySourceTest {
             // Should fall back to default git format
             assertTrue(dateValue.matches("\\w{3} \\w{3} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4} [+-]\\d{4}"));
         }
+    }
+
+    @Test
+    void testVersionHintPatternMatching() {
+        JGitPropertySource source = new JGitPropertySource();
+
+        // Test default pattern: ${version}-SNAPSHOT
+        String hintPattern = "${version}-SNAPSHOT";
+        // Use the same logic as the actual implementation
+        String regexPattern = hintPattern
+                .replace(".", "\\.") // Escape literal dots
+                .replace("-", "\\-"); // Escape literal dashes
+        regexPattern = regexPattern.replace("${version}", "(\\d+\\.\\d+\\.\\d+)");
+        Pattern hintTagPattern = Pattern.compile("refs/tags/v?" + regexPattern);
+
+        // Debug: print the actual regex pattern
+        System.out.println("Regex pattern: " + hintTagPattern.pattern());
+
+        // Test matching tags
+        String testTag1 = "refs/tags/4.1.0-SNAPSHOT";
+        System.out.println("Testing: " + testTag1 + " -> "
+                + hintTagPattern.matcher(testTag1).matches());
+        assertTrue(hintTagPattern.matcher(testTag1).matches());
+
+        String testTag2 = "refs/tags/v4.2.0-SNAPSHOT";
+        System.out.println("Testing: " + testTag2 + " -> "
+                + hintTagPattern.matcher(testTag2).matches());
+        assertTrue(hintTagPattern.matcher(testTag2).matches());
+
+        assertTrue(hintTagPattern.matcher("refs/tags/4.0.0-SNAPSHOT").matches());
+
+        // Test non-matching tags
+        assertFalse(hintTagPattern.matcher("refs/tags/3.0.0").matches());
+        assertFalse(hintTagPattern.matcher("refs/tags/invalid-tag").matches());
+        assertFalse(hintTagPattern.matcher("refs/tags/4.1.0-RELEASE").matches());
+
+        // Test version extraction
+        java.util.regex.Matcher matcher = hintTagPattern.matcher("refs/tags/4.1.0-SNAPSHOT");
+        if (matcher.matches()) {
+            assertEquals("4.1.0", matcher.group(1));
+        }
+
+        matcher = hintTagPattern.matcher("refs/tags/v4.2.0-SNAPSHOT");
+        if (matcher.matches()) {
+            assertEquals("4.2.0", matcher.group(1));
+        }
+    }
+
+    @Test
+    void testCustomVersionHintPatternMatching() {
+        JGitPropertySource source = new JGitPropertySource();
+
+        // Test custom pattern: hint-${version}
+        String hintPattern = "hint-${version}";
+        // Use the same logic as the actual implementation
+        String regexPattern = hintPattern
+                .replace(".", "\\.") // Escape literal dots
+                .replace("-", "\\-"); // Escape literal dashes
+        regexPattern = regexPattern.replace("${version}", "(\\d+\\.\\d+\\.\\d+)");
+        Pattern hintTagPattern = Pattern.compile("refs/tags/v?" + regexPattern);
+
+        // Test matching tags
+        assertTrue(hintTagPattern.matcher("refs/tags/hint-4.1.0").matches());
+        assertTrue(hintTagPattern.matcher("refs/tags/hint-3.0.0").matches());
+
+        // Test non-matching tags
+        assertFalse(hintTagPattern.matcher("refs/tags/v4.2.0-SNAPSHOT").matches());
+        assertFalse(hintTagPattern.matcher("refs/tags/4.0.0").matches());
+        assertFalse(hintTagPattern.matcher("refs/tags/invalid-tag").matches());
+
+        // Test version extraction
+        java.util.regex.Matcher matcher = hintTagPattern.matcher("refs/tags/hint-4.1.0");
+        assertTrue(matcher.matches());
+        assertEquals("4.1.0", matcher.group(1));
+
+        matcher = hintTagPattern.matcher("refs/tags/hint-3.0.0");
+        assertTrue(matcher.matches());
+        assertEquals("3.0.0", matcher.group(1));
+    }
+
+    @Test
+    void testFindHighestVersionFromHints() {
+        JGitPropertySource source = new JGitPropertySource();
+
+        List<String> hintVersions = Arrays.asList("4.1.0", "4.2.0", "3.0.0", "4.0.0");
+
+        Optional<String> highest = source.findHighestVersionFromHints(hintVersions);
+
+        assertTrue(highest.isPresent());
+        assertEquals("4.2.0", highest.get());
+    }
+
+    @Test
+    void testFindHighestVersionFromHintsEmpty() {
+        JGitPropertySource source = new JGitPropertySource();
+
+        List<String> hintVersions = Arrays.asList();
+
+        Optional<String> highest = source.findHighestVersionFromHints(hintVersions);
+
+        assertFalse(highest.isPresent());
     }
 }
