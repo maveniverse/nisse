@@ -30,8 +30,17 @@ works in both, Maven 3 and Maven 4. Last is the recommended extension to be used
 Note: Nisse can be used as "plugin only" as well, but functionality in this case is limited ONLY to providing 
 properties for interpolation (within a project).
 
-If you intend to use Nisse as OS Detector "drop in replacement", just add Nisse as extension to your project and
-specify `-Dnisse.compat.osDetector` on CLI or better, in `.mvn/maven.config` file.
+Nisse can serve as OS Detector **drop in replacement**, just add Nisse as extension to your project and
+specify `-Dnisse.compat.osDetector` on CLI or better, in `.mvn/maven.config` file. If this option present, 
+Nisse will emit **same properties** as OS Detector did.
+
+To check what Nisse injects, simplest command to use is Nisse dump:
+
+```
+$ mvn validate -N -Dnisse.dump
+```
+
+The `-N` is needed only if you are in root of some complex multi-module project.
 
 ## Implemented Sources
 
