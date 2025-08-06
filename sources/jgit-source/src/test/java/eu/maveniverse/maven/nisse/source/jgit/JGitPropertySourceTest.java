@@ -31,7 +31,9 @@ public class JGitPropertySourceTest {
             System.out.println("Default date format: " + dateValue);
             // Default format should match: EEE MMM dd HH:mm:ss yyyy Z
             // Example: Mon May 27 18:20:45 2024 +0200
-            assertTrue(dateValue.matches("\\w{3} \\w{3} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4} [+-]\\d{4}"));
+            assertTrue(
+                    dateValue.matches("\\w{3} \\w{3} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4} [+-]\\d{4}"),
+                    "Expected date format 'EEE MMM dd HH:mm:ss yyyy Z' but got: " + dateValue);
         }
     }
 
@@ -108,7 +110,9 @@ public class JGitPropertySourceTest {
             String dateValue = properties.get("date");
             System.out.println("Fallback date format: " + dateValue);
             // Should fall back to default git format
-            assertTrue(dateValue.matches("\\w{3} \\w{3} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4} [+-]\\d{4}"));
+            assertTrue(
+                    dateValue.matches("\\w{3} \\w{3} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4} [+-]\\d{4}"),
+                    "Expected fallback date format 'EEE MMM dd HH:mm:ss yyyy Z' but got: " + dateValue);
         }
     }
 

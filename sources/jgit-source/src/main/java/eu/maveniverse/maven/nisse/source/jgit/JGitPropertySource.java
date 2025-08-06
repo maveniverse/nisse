@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -202,7 +203,7 @@ public class JGitPropertySource implements PropertySource {
 
         switch (dateFormat.toLowerCase()) {
             case "git":
-                return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z");
+                return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z", Locale.ENGLISH);
             case "iso8601":
                 return DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
             case "iso8601-offset":
@@ -218,19 +219,19 @@ public class JGitPropertySource implements PropertySource {
                                 "Invalid custom date format pattern '{}', falling back to default 'git' format",
                                 customPattern,
                                 e);
-                        return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z");
+                        return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z", Locale.ENGLISH);
                     }
                 } else {
                     logger.warn(
                             "Custom date format specified but no pattern provided via '{}', falling back to default 'git' format",
                             JGIT_CONF_SYSTEM_PROPERTY_DATE_FORMAT_PATTERN);
-                    return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z");
+                    return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z", Locale.ENGLISH);
                 }
             default:
                 logger.warn(
                         "Unknown date format '{}', falling back to default 'git' format. Supported formats: git, iso8601, iso8601-offset, custom",
                         dateFormat);
-                return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z");
+                return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z", Locale.ENGLISH);
         }
     }
 
@@ -248,6 +249,9 @@ public class JGitPropertySource implements PropertySource {
             Optional<String> versionHint = findVersionHint(configuration, repository);
             if (versionHint.isPresent()) {
                 vi = new VersionInformation(versionHint.get());
+                // Version hints are treated as if the previous commit was tagged,
+                // so we should add SNAPSHOT qualifier since we're ahead of that "previous commit"
+                vi = mayAddSnapshotQualifier(configuration, vi);
                 logger.debug("Using version hint from tag: {}", versionHint.get());
             } else {
                 vi = getVersionFromGit(configuration, repository);
@@ -413,9 +417,6 @@ public class JGitPropertySource implements PropertySource {
      * @return Optional highest version string
      */
     protected Optional<String> findHighestVersionFromHints(List<String> hintVersions) {
-        return hintVersions.stream()
-                .map(this::version)
-                .max(Comparator.comparing(version -> version))
-                .map(Version::toString);
+        return hintVersions.stream().max(Comparator.comparing(this::version));
     }
 }
