@@ -215,8 +215,8 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
          * The "roll your own" strategy to use. If user calls this method with non-null strategy, it will be used
          * by Nisse "as is", and strategies added by {@link #combinePropertyKeyNamingStrategy(BiFunction)}, if any,
          * will be completely ignored.
-         * 
-         * @see #combinePropertyKeyNamingStrategy(BiFunction) 
+         *
+         * @see #combinePropertyKeyNamingStrategy(BiFunction)
          */
         public Builder withPropertyKeyNamingStrategy(
                 BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy) {
@@ -231,7 +231,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
          * This method is no-op if invoked with {@code null}.
          *
          * @see PropertyKeyNamingStrategies#fork(List)
-         * @see #withPropertyKeyNamingStrategy(BiFunction) 
+         * @see #withPropertyKeyNamingStrategy(BiFunction)
          */
         public Builder combinePropertyKeyNamingStrategy(
                 BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy) {
