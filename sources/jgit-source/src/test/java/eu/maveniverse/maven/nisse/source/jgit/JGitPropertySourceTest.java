@@ -2,7 +2,7 @@ package eu.maveniverse.maven.nisse.source.jgit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
+import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;

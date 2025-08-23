@@ -2,7 +2,7 @@ package eu.maveniverse.maven.nisse.plugin3;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
-import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
+import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Map;

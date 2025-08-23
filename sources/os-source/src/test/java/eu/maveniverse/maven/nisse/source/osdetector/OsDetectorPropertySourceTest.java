@@ -1,6 +1,6 @@
 package eu.maveniverse.maven.nisse.source.osdetector;
 
-import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
+import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 
