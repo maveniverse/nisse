@@ -5,7 +5,7 @@
  * which accompanies this distribution, and is available at
  * https://www.eclipse.org/legal/epl-v20.html
  */
-package eu.maveniverse.maven.nisse.core.internal;
+package eu.maveniverse.maven.nisse.core.simple;
 
 import static java.util.Objects.requireNonNull;
 
@@ -22,7 +22,7 @@ import javax.inject.Singleton;
 
 @Singleton
 @Named
-class SimpleNisseManager implements NisseManager {
+public class SimpleNisseManager implements NisseManager {
     private final List<PropertySource> sources;
 
     @Inject

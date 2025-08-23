@@ -12,7 +12,7 @@ import static java.util.Objects.requireNonNull;
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
 import eu.maveniverse.maven.nisse.core.Version;
-import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
+import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Properties;

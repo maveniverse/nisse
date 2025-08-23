@@ -3,7 +3,7 @@ package eu.maveniverse.maven.nisse.extension3.internal;
 import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
-import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
+import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
 import java.nio.file.Paths;
 import javax.inject.Inject;

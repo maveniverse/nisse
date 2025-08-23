@@ -1,4 +1,4 @@
-package eu.maveniverse.maven.nisse.core.internal;
+package eu.maveniverse.maven.nisse.core.simple;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
