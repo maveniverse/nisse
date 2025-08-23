@@ -14,7 +14,7 @@
   <parent>
     <groupId>eu.maveniverse.maven.nisse</groupId>
     <artifactId>nisse</artifactId>
-    <version>0.6.0</version>
+    <version>0.6.1-SNAPSHOT</version>
   </parent>
 
   <artifactId>core</artifactId>
