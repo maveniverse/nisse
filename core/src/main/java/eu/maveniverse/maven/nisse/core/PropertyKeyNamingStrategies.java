@@ -99,7 +99,7 @@ public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, 
     /**
      * The default combined naming strategy Nisse applied in existing releases so far.
      * <p>
-     * Is combined out of:
+     * Is {@link #pipe(BiFunction[])} combined out of:
      * <ul>
      *     <li>{@link #sourcePrefixed()}</li>
      *     <li>{@link #nissePrefixed()}</li>
