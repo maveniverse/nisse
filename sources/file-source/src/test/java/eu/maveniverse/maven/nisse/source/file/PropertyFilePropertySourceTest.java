@@ -1,6 +1,6 @@
 package eu.maveniverse.maven.nisse.source.file;
 
-import eu.maveniverse.maven.nisse.core.internal.SimpleNisseConfiguration;
+import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
