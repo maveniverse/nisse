@@ -2,6 +2,7 @@ package eu.maveniverse.maven.nisse.plugin3;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
+import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -39,6 +40,15 @@ public class InjectPropertiesMojo extends AbstractMojo {
                             .getRequest()
                             .getMultiModuleProjectDirectory()
                             .toPath())
+                    .combinePropertyKeyNamingStrategy(PropertyKeyNamingStrategies.translated(
+                            PropertyKeyNamingStrategies.translationTableFromPropertiesFile(mavenSession
+                                    .getRequest()
+                                    .getMultiModuleProjectDirectory()
+                                    .toPath()
+                                    .resolve(".mvn")
+                                    .resolve("nisse-translation.properties")),
+                            PropertyKeyNamingStrategies.sourcePrefixed(),
+                            PropertyKeyNamingStrategies.defaultStrategy()))
                     .build();
             Map<String, String> properties = nisseManager.createProperties(configuration);
             getLog().info("Injecting " + properties.size() + " properties");

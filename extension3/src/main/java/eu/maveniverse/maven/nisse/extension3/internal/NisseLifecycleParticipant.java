@@ -3,6 +3,7 @@ package eu.maveniverse.maven.nisse.extension3.internal;
 import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
+import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -36,6 +37,14 @@ class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
                     .withSessionRootDirectory(session.getRequest()
                             .getMultiModuleProjectDirectory()
                             .toPath())
+                    .combinePropertyKeyNamingStrategy(PropertyKeyNamingStrategies.translated(
+                            PropertyKeyNamingStrategies.translationTableFromPropertiesFile(session.getRequest()
+                                    .getMultiModuleProjectDirectory()
+                                    .toPath()
+                                    .resolve(".mvn")
+                                    .resolve("nisse-translation.properties")),
+                            PropertyKeyNamingStrategies.sourcePrefixed(),
+                            PropertyKeyNamingStrategies.defaultStrategy()))
                     .build();
             for (String inlinedKey : configuration.getInlinedPropertyKeys()) {
                 if (inliner.inlinedKeys(session).add(inlinedKey)) {

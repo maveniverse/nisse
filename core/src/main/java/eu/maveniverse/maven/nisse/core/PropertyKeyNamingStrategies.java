@@ -9,10 +9,17 @@ package eu.maveniverse.maven.nisse.core;
 
 import static java.util.Objects.requireNonNull;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -21,9 +28,10 @@ import java.util.stream.Collectors;
  */
 public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, String, List<String>> {
     /**
-     * Combines multiple strategies.
+     * Forks multiple strategies: effect is that input key is mapped to each combined strategies and output is then
+     * aggregated. If all strategy provides one output for one input, the effect of this strategy is {@code 1:N}.
      */
-    static BiFunction<PropertySource, String, List<String>> combine(
+    static BiFunction<PropertySource, String, List<String>> fork(
             List<BiFunction<PropertySource, String, List<String>>> strategies) {
         requireNonNull(strategies, "strategies");
         if (strategies.isEmpty()) {
@@ -41,17 +49,81 @@ public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, 
         }
     }
 
+    /**
+     * Shorthand for {@link #fork(List)}.
+     */
+    @SafeVarargs
+    static BiFunction<PropertySource, String, List<String>> fork(
+            BiFunction<PropertySource, String, List<String>>... strategies) {
+        return fork(Arrays.asList(strategies));
+    }
+
+    /**
+     * Pipes multiple strategies. Effect is that input key is applied to first combined strategy, then that result is
+     * applied to second combined strategy and so on, accumulating all results. If all strategy provides one output
+     * for one input, the effect of this strategy is {@code 1:1}. If strategy emits empty list for given key, key is
+     * carried over to next strategy unchanged.
+     */
+    static BiFunction<PropertySource, String, List<String>> pipe(
+            List<BiFunction<PropertySource, String, List<String>>> strategies) {
+        requireNonNull(strategies, "strategies");
+        if (strategies.isEmpty()) {
+            throw new IllegalArgumentException("strategies must not be empty");
+        } else if (strategies.size() == 1) {
+            return strategies.get(0);
+        } else {
+            return (propertySource, key) -> {
+                List<String> keys = Collections.singletonList(key);
+                List<String> acc = new ArrayList<>();
+                for (BiFunction<PropertySource, String, List<String>> strategy : strategies) {
+                    for (String k : keys) {
+                        List<String> a = strategy.apply(propertySource, k);
+                        if (a.isEmpty()) {
+                            acc.add(k);
+                        } else {
+                            acc.addAll(a);
+                        }
+                    }
+                    keys = new ArrayList<>(acc);
+                    acc = new ArrayList<>(keys.size());
+                }
+                return keys;
+            };
+        }
+    }
+
+    /**
+     * Shorthand for {@link #pipe(List)}.
+     */
+    @SafeVarargs
+    static BiFunction<PropertySource, String, List<String>> pipe(
+            BiFunction<PropertySource, String, List<String>>... strategies) {
+        return pipe(Arrays.asList(strategies));
+    }
+
     // strategies
 
     /**
-     * The default naming strategy Nisse applied in existing releases so far.
+     * The default combined naming strategy Nisse applied in existing releases so far.
      * <p>
+     * Is {@link #pipe(BiFunction[])} combined out of:
+     * <ul>
+     *     <li>{@link #sourcePrefixed()}</li>
+     *     <li>{@link #nissePrefixed()}</li>
+     * </ul>
      * It prefixes keys as {@code "nisse." + $source.name + "." + $key}.
      */
-    static BiFunction<PropertySource, String, List<String>> nisseDefault() {
-        return sourcePrefixed().andThen(ls -> ls.stream()
-                .map(s -> NisseConfiguration.PROPERTY_PREFIX + s)
-                .collect(Collectors.toList()));
+    static BiFunction<PropertySource, String, List<String>> defaultStrategy() {
+        return pipe(sourcePrefixed(), nissePrefixed());
+    }
+
+    /**
+     * The prefixing naming strategy Nisse applied in all existing releases so far.
+     * <p>
+     * It prefixes keys as {@code "nisse." + $key}.
+     */
+    static BiFunction<PropertySource, String, List<String>> nissePrefixed() {
+        return prefixed(NisseConfiguration.PROPERTY_PREFIX);
     }
 
     /**
@@ -126,6 +198,27 @@ public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, 
             }
             return result;
         };
+    }
+
+    /**
+     * Loads up translation table from given properties file, if exists. Otherwise, returns empty map.
+     */
+    static Map<String, List<String>> translationTableFromPropertiesFile(Path properties) throws IOException {
+        if (Files.exists(properties)) {
+            Properties props = new Properties();
+            try (InputStream inputStream = Files.newInputStream(properties)) {
+                props.load(inputStream);
+            }
+            Map<String, List<String>> translation = new HashMap<>();
+            for (String key : props.stringPropertyNames()) {
+                List<String> values = Arrays.stream(props.getProperty(key).split(","))
+                        .filter(s -> !s.trim().isEmpty())
+                        .collect(Collectors.toList());
+                translation.put(key, values);
+            }
+            return translation;
+        }
+        return Collections.emptyMap();
     }
 
     /**

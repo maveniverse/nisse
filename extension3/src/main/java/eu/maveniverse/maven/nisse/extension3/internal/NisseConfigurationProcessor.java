@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
+import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.Version;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.nio.file.Paths;
@@ -56,6 +57,14 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 .withCurrentWorkingDirectory(Paths.get(request.getWorkingDirectory()))
                 .withSessionRootDirectory(
                         request.getMultiModuleProjectDirectory().toPath())
+                .combinePropertyKeyNamingStrategy(PropertyKeyNamingStrategies.translated(
+                        PropertyKeyNamingStrategies.translationTableFromPropertiesFile(
+                                request.getMultiModuleProjectDirectory()
+                                        .toPath()
+                                        .resolve(".mvn")
+                                        .resolve("nisse-translation.properties")),
+                        PropertyKeyNamingStrategies.sourcePrefixed(),
+                        PropertyKeyNamingStrategies.defaultStrategy()))
                 .build();
         Map<String, String> nisseProperties = nisseManager.createProperties(configuration);
         logger.info("Nisse injecting {} properties into User Properties", nisseProperties.size());

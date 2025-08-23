@@ -25,6 +25,12 @@ public interface NisseConfiguration {
     String SOURCE_PREFIX = PROPERTY_PREFIX + "source.";
 
     /**
+     * Key to use for detecting is "os-detector compatibility" requested. Value of this key is parsed as
+     * boolean string.
+     */
+    String COMPAT_OS_DETECTOR = PROPERTY_PREFIX + "compat.osDetector";
+
+    /**
      * Returns immutable map of session effective system properties, never {@code null}.
      */
     Map<String, String> getSystemProperties();
