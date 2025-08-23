@@ -53,8 +53,9 @@ public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, 
 
     /**
      * Pipes multiple strategies. Effect is that input key is applied to first combined strategy, then that result is
-     * applied to second combined strategy and so on. If all strategy provides one output for one input, the effect of
-     * this strategy is {@code 1:N}. If strategy emits empty list for given key, key is "carried over" unchanged.
+     * applied to second combined strategy and so on, accumulating all results. If all strategy provides one output
+     * for one input, the effect of this strategy is {@code 1:1}. If strategy emits empty list for given key, key is
+     * carried over to next strategy unchanged.
      */
     static BiFunction<PropertySource, String, List<String>> pipe(
             List<BiFunction<PropertySource, String, List<String>>> strategies) {
