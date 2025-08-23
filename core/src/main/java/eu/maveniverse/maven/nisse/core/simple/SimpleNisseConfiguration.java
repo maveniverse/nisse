@@ -12,13 +12,9 @@ import static java.util.Objects.requireNonNull;
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.PropertySource;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -110,10 +106,12 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
         private Map<String, String> userProperties = new HashMap<>();
         private Path currentWorkingDirectory = Paths.get("").toAbsolutePath();
         private Path sessionRootDirectory = Paths.get("").toAbsolutePath();
+        private final List<BiFunction<PropertySource, String, List<String>>> propertyKeyNamingStrategies =
+                new ArrayList<>();
         private BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy = null;
         private boolean detectCompatOsDetector = true; // default behaviour
 
-        public SimpleNisseConfiguration build() throws IOException {
+        public SimpleNisseConfiguration build() {
             HashMap<String, String> configuration = new HashMap<>(systemProperties);
             // Broadening support: Maven versions pre 3.9.2 had no means to configure resources
             // from project. In those case we "backport" session.rootDirectory ONLY
@@ -126,39 +124,19 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                 configuration.put(key, value);
             }
 
-            // if caller provided naming strategy, use that, otherwise configure ourselves one
+            // if caller provided naming strategy, use it as-is, otherwise configure from list (or just default it)
             if (propertyKeyNamingStrategy == null) {
-                ArrayList<BiFunction<PropertySource, String, List<String>>> strategies = new ArrayList<>();
-
-                // translation
-                Path translationTable = sessionRootDirectory.resolve(".mvn").resolve("nisse-translation.properties");
-                if (Files.exists(translationTable)) {
-                    Properties props = new Properties();
-                    try (InputStream inputStream = Files.newInputStream(translationTable)) {
-                        props.load(inputStream);
-                    }
-                    Map<String, List<String>> translation = new HashMap<>();
-                    for (String key : props.stringPropertyNames()) {
-                        List<String> values = Arrays.stream(
-                                        props.getProperty(key).split(","))
-                                .filter(s -> !s.trim().isEmpty())
-                                .collect(Collectors.toList());
-                        translation.put(key, values);
-                    }
-                    strategies.add(PropertyKeyNamingStrategies.translated(
-                            translation,
-                            PropertyKeyNamingStrategies.sourcePrefixed(),
-                            PropertyKeyNamingStrategies.defaultStrategy()));
-                } else {
-                    strategies.add(PropertyKeyNamingStrategies.defaultStrategy());
+                // defaults if none present
+                if (propertyKeyNamingStrategies.isEmpty()) {
+                    propertyKeyNamingStrategies.add(PropertyKeyNamingStrategies.defaultStrategy());
                 }
-
-                // compat
+                // compat; if enabled
                 if (detectCompatOsDetector && Boolean.parseBoolean(configuration.get(COMPAT_OS_DETECTOR))) {
-                    strategies.add(PropertyKeyNamingStrategies.osDetector());
+                    propertyKeyNamingStrategies.add(PropertyKeyNamingStrategies.osDetector());
                 }
 
-                this.propertyKeyNamingStrategy = PropertyKeyNamingStrategies.fork(strategies);
+                // combine all using fork()
+                this.propertyKeyNamingStrategy = PropertyKeyNamingStrategies.fork(propertyKeyNamingStrategies);
             }
 
             return new SimpleNisseConfiguration(
@@ -223,17 +201,42 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
             return this;
         }
 
+        /**
+         * Whether "OS detector compat detection" should be enabled or disabled. By default, is enabled.
+         *
+         * @see NisseConfiguration#COMPAT_OS_DETECTOR
+         */
         public Builder withDetectCompatOsDetector(boolean detectCompatOsDetector) {
             this.detectCompatOsDetector = detectCompatOsDetector;
             return this;
         }
 
+        /**
+         * The "roll your own" strategy to use. If user calls this method with non-null strategy, it will be used
+         * by Nisse "as is", and strategies added by {@link #combinePropertyKeyNamingStrategy(BiFunction)}, if any,
+         * will be completely ignored.
+         * 
+         * @see #combinePropertyKeyNamingStrategy(BiFunction) 
+         */
         public Builder withPropertyKeyNamingStrategy(
                 BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy) {
+            this.propertyKeyNamingStrategy = propertyKeyNamingStrategy;
+            return this;
+        }
+
+        /**
+         * Here user may add multiple strategies that will be combined using {@link PropertyKeyNamingStrategies#fork(List)}.
+         * The {@link PropertyKeyNamingStrategies#defaultStrategy()} is <em>not appended to end of this list</em>.
+         * Hence, user needs to append it if required.
+         * This method is no-op if invoked with {@code null}.
+         *
+         * @see PropertyKeyNamingStrategies#fork(List)
+         * @see #withPropertyKeyNamingStrategy(BiFunction) 
+         */
+        public Builder combinePropertyKeyNamingStrategy(
+                BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy) {
             if (propertyKeyNamingStrategy != null) {
-                this.propertyKeyNamingStrategy = propertyKeyNamingStrategy;
-            } else {
-                this.propertyKeyNamingStrategy = PropertyKeyNamingStrategies.defaultStrategy();
+                this.propertyKeyNamingStrategies.add(propertyKeyNamingStrategy);
             }
             return this;
         }

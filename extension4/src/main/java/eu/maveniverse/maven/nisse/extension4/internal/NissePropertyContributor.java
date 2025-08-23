@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
+import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.Version;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
@@ -46,6 +47,13 @@ final class NissePropertyContributor implements PropertyContributor {
                     .withUserProperties(protoSession.getUserProperties())
                     .withCurrentWorkingDirectory(protoSession.getTopDirectory())
                     .withSessionRootDirectory(protoSession.getRootDirectory())
+                    .combinePropertyKeyNamingStrategy(PropertyKeyNamingStrategies.translated(
+                            PropertyKeyNamingStrategies.translationTableFromPropertiesFile(protoSession
+                                    .getRootDirectory()
+                                    .resolve(".mvn")
+                                    .resolve("nisse-translation.properties")),
+                            PropertyKeyNamingStrategies.sourcePrefixed(),
+                            PropertyKeyNamingStrategies.defaultStrategy()))
                     .build();
             Map<String, String> result = new HashMap<>(protoSession.getUserProperties());
             Map<String, String> nisseProperties = nisseManager.createProperties(configuration);
