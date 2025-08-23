@@ -147,9 +147,9 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                     strategies.add(PropertyKeyNamingStrategies.translated(
                             translation,
                             PropertyKeyNamingStrategies.sourcePrefixed(),
-                            PropertyKeyNamingStrategies.nisseDefault()));
+                            PropertyKeyNamingStrategies.defaultStrategy()));
                 } else {
-                    strategies.add(PropertyKeyNamingStrategies.nisseDefault());
+                    strategies.add(PropertyKeyNamingStrategies.defaultStrategy());
                 }
 
                 // compat
@@ -157,7 +157,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                     strategies.add(PropertyKeyNamingStrategies.osDetector());
                 }
 
-                this.propertyKeyNamingStrategy = PropertyKeyNamingStrategies.combine(strategies);
+                this.propertyKeyNamingStrategy = PropertyKeyNamingStrategies.fork(strategies);
             }
 
             return new SimpleNisseConfiguration(
@@ -227,7 +227,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
             if (propertyKeyNamingStrategy != null) {
                 this.propertyKeyNamingStrategy = propertyKeyNamingStrategy;
             } else {
-                this.propertyKeyNamingStrategy = PropertyKeyNamingStrategies.nisseDefault();
+                this.propertyKeyNamingStrategy = PropertyKeyNamingStrategies.defaultStrategy();
             }
             return this;
         }

@@ -20,12 +20,12 @@ public class PropertyKeyNamingStrategiesTest {
         Map<String, List<String>> translations = new HashMap<>();
         translations.put("one.first", Collections.singletonList("first.theOnly"));
         translations.put("two.first", Arrays.asList("second.one", "second.two"));
-        BiFunction<PropertySource, String, List<String>> strategy = PropertyKeyNamingStrategies.combine(Arrays.asList(
+        BiFunction<PropertySource, String, List<String>> strategy = PropertyKeyNamingStrategies.fork(
                 PropertyKeyNamingStrategies.translated(
                         translations,
                         PropertyKeyNamingStrategies.sourcePrefixed(),
-                        PropertyKeyNamingStrategies.nisseDefault()),
-                PropertyKeyNamingStrategies.osDetector()));
+                        PropertyKeyNamingStrategies.defaultStrategy()),
+                PropertyKeyNamingStrategies.osDetector());
 
         PropertySource oneSource = new PropertySource() {
             @Override
