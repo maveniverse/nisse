@@ -9,12 +9,19 @@ package eu.maveniverse.maven.nisse.core;
 
 import static java.util.Objects.requireNonNull;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 /**
  * Property key naming strategies.
@@ -191,6 +198,27 @@ public interface PropertyKeyNamingStrategies extends BiFunction<PropertySource, 
             }
             return result;
         };
+    }
+
+    /**
+     * Loads up translation table from given properties file, if exists. Otherwise, returns empty map.
+     */
+    static Map<String, List<String>> translationTableFromPropertiesFile(Path properties) throws IOException {
+        if (Files.exists(properties)) {
+            Properties props = new Properties();
+            try (InputStream inputStream = Files.newInputStream(properties)) {
+                props.load(inputStream);
+            }
+            Map<String, List<String>> translation = new HashMap<>();
+            for (String key : props.stringPropertyNames()) {
+                List<String> values = Arrays.stream(props.getProperty(key).split(","))
+                        .filter(s -> !s.trim().isEmpty())
+                        .collect(Collectors.toList());
+                translation.put(key, values);
+            }
+            return translation;
+        }
+        return Collections.emptyMap();
     }
 
     /**

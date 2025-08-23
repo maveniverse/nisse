@@ -111,6 +111,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
         private Path currentWorkingDirectory = Paths.get("").toAbsolutePath();
         private Path sessionRootDirectory = Paths.get("").toAbsolutePath();
         private BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy = null;
+        private boolean detectCompatOsDetector = true; // default behaviour
 
         public SimpleNisseConfiguration build() throws IOException {
             HashMap<String, String> configuration = new HashMap<>(systemProperties);
@@ -153,7 +154,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
                 }
 
                 // compat
-                if (Boolean.parseBoolean(configuration.get("nisse.compat.osDetector"))) {
+                if (detectCompatOsDetector && Boolean.parseBoolean(configuration.get(COMPAT_OS_DETECTOR))) {
                     strategies.add(PropertyKeyNamingStrategies.osDetector());
                 }
 
@@ -219,6 +220,11 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
             } else {
                 this.sessionRootDirectory = Paths.get("");
             }
+            return this;
+        }
+
+        public Builder withDetectCompatOsDetector(boolean detectCompatOsDetector) {
+            this.detectCompatOsDetector = detectCompatOsDetector;
             return this;
         }
 
