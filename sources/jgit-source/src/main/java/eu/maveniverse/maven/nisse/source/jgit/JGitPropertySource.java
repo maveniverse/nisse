@@ -82,6 +82,13 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_CONF_SYSTEM_PROPERTY_USE_VERSION = "nisse.source.jgit.useVersion";
 
     /**
+     * Set to {@code true} to enable "version hint" feature.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT = "nisse.source.jgit.versionHint";
+
+    private static final String DEFAULT_VERSION_HINT = Boolean.FALSE.toString();
+
+    /**
      * Pattern for version hint tags. Use ${version} as placeholder for the version part.
      * Default is "${version}-SNAPSHOT" which matches tags like "4.1.0-SNAPSHOT".
      * Can be customized to patterns like "hint-${version}" or "next-${version}".
@@ -245,8 +252,11 @@ public class JGitPropertySource implements PropertySource {
             vi = new VersionInformation(useVersion.get());
             logger.debug("Using explicit version from useVersion property: {}", useVersion.get());
         } else {
-            // Try to find version hint tags first
-            Optional<String> versionHint = findVersionHint(configuration, repository);
+            // Try to find version hint tags first (if enabled)
+            Optional<String> versionHint = Boolean.parseBoolean(
+                            System.getProperty(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT, DEFAULT_VERSION_HINT))
+                    ? findVersionHint(configuration, repository)
+                    : Optional.empty();
             if (versionHint.isPresent()) {
                 vi = new VersionInformation(versionHint.get());
                 // Version hints are treated as if the previous commit was tagged,
