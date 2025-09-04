@@ -245,17 +245,59 @@ public class JGitPropertySource implements PropertySource {
             vi = new VersionInformation(useVersion.get());
             logger.debug("Using explicit version from useVersion property: {}", useVersion.get());
         } else {
-            // Try to find version hint tags first
+            // First, get version from git history (regular release tags)
+            VersionInformation gitHistoryVersion = getVersionFromGit(configuration, repository);
+            logger.debug("Version from git history: {}", gitHistoryVersion.toString());
+
+            // Check if using custom version hint pattern
+            String versionHintPattern = configuration
+                    .getConfiguration()
+                    .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN, DEFAULT_VERSION_HINT_PATTERN);
+            boolean isCustomPattern = !DEFAULT_VERSION_HINT_PATTERN.equals(versionHintPattern);
+
+            // Then, check for version hint tags
             Optional<String> versionHint = findVersionHint(configuration, repository);
             if (versionHint.isPresent()) {
-                vi = new VersionInformation(versionHint.get());
-                // Version hints are treated as if the previous commit was tagged,
-                // so we should add SNAPSHOT qualifier since we're ahead of that "previous commit"
-                vi = mayAddSnapshotQualifier(configuration, vi);
-                logger.debug("Using version hint from tag: {}", versionHint.get());
+                VersionInformation hintVersion = new VersionInformation(versionHint.get());
+                logger.debug("Version hint found: {}", hintVersion.toString());
+
+                if (isCustomPattern) {
+                    // With custom pattern, version hints take priority (git history only contains matching tags)
+                    vi = mayAddSnapshotQualifier(configuration, hintVersion);
+                    logger.debug("Using version hint (custom pattern): {}", versionHint.get());
+                } else {
+                    // With default pattern, compare versions
+                    // Check if git history version is the default (meaning no regular release tags found)
+                    boolean isDefaultGitVersion = gitHistoryVersion.getMajor() == 0
+                            && gitHistoryVersion.getMinor() == 0
+                            && gitHistoryVersion.getPatch() == 1;
+
+                    if (isDefaultGitVersion) {
+                        // No regular release tags found, use version hint directly
+                        vi = mayAddSnapshotQualifier(configuration, hintVersion);
+                        logger.debug("Using version hint (no regular release tags found): {}", versionHint.get());
+                    } else {
+                        // Compare versions - use hint only if it's higher than git history version
+                        Version gitHistoryVersionParsed = version(gitHistoryVersion.toString());
+                        Version hintVersionParsed = version(hintVersion.toString());
+
+                        if (hintVersionParsed.compareTo(gitHistoryVersionParsed) > 0) {
+                            // Version hint is higher, use it
+                            vi = mayAddSnapshotQualifier(configuration, hintVersion);
+                            logger.debug("Using version hint (higher than git history): {}", versionHint.get());
+                        } else {
+                            // Git history version is higher or equal, use it
+                            vi = gitHistoryVersion;
+                            logger.debug(
+                                    "Using git history version (higher than or equal to version hint): {}",
+                                    gitHistoryVersion.toString());
+                        }
+                    }
+                }
             } else {
-                vi = getVersionFromGit(configuration, repository);
-                logger.debug("Using version resolved from git history");
+                // No version hint, use git history version
+                vi = gitHistoryVersion;
+                logger.debug("Using version resolved from git history (no version hint found)");
             }
         }
 
@@ -274,7 +316,7 @@ public class JGitPropertySource implements PropertySource {
             Iterable<RevCommit> commits = git.log().call();
             int count = 0;
             for (RevCommit commit : commits) {
-                Optional<VersionInformation> ovi = getHighestVersionTagForCommit(git, commit);
+                Optional<VersionInformation> ovi = getHighestVersionTagForCommit(configuration, git, commit);
 
                 if (ovi.isPresent()) {
                     VersionInformation vi = ovi.get();
@@ -295,17 +337,24 @@ public class JGitPropertySource implements PropertySource {
         }
     }
 
-    private Optional<VersionInformation> getHighestVersionTagForCommit(Git git, RevCommit commit)
-            throws GitAPIException {
+    private Optional<VersionInformation> getHighestVersionTagForCommit(
+            NisseConfiguration configuration, Git git, RevCommit commit) throws GitAPIException {
         // get tags use semantic version (X.Y.Z or vX.Y.Z) for for commit
-        List<String> versionTagsForCommit = getVersionedTagsForCommit(git, commit);
+        List<String> versionTagsForCommit = getVersionedTagsForCommit(configuration, git, commit);
         logger.debug("commit {} {}: {}", commit.getId(), commit.getShortMessage(), versionTagsForCommit.toString());
         Optional<VersionInformation> ovi = findHighestVersion(versionTagsForCommit);
 
         return ovi;
     }
 
-    protected List<String> getVersionedTagsForCommit(Git git, RevCommit commit) throws GitAPIException {
+    protected List<String> getVersionedTagsForCommit(NisseConfiguration configuration, Git git, RevCommit commit)
+            throws GitAPIException {
+        // Check if using custom version hint pattern
+        String versionHintPattern = configuration
+                .getConfiguration()
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN, DEFAULT_VERSION_HINT_PATTERN);
+        boolean isCustomPattern = !DEFAULT_VERSION_HINT_PATTERN.equals(versionHintPattern);
+
         return git.tagList().call().stream()
                 .filter(tag -> {
                     try {
@@ -320,6 +369,15 @@ public class JGitPropertySource implements PropertySource {
                     }
                 })
                 .map(Ref::getName)
+                .filter(tagName -> {
+                    if (isCustomPattern) {
+                        // With custom pattern, only consider tags that match the pattern
+                        return isVersionHintTag(configuration, tagName);
+                    } else {
+                        // With default pattern, exclude version hint tags to avoid double-counting
+                        return !isVersionHintTag(configuration, tagName);
+                    }
+                })
                 .map(TAG_VERSION_PATTERN::matcher)
                 .filter(m -> m.matches() && m.groupCount() > 0)
                 .map(m -> m.group(1))
@@ -418,5 +476,31 @@ public class JGitPropertySource implements PropertySource {
      */
     protected Optional<String> findHighestVersionFromHints(List<String> hintVersions) {
         return hintVersions.stream().max(Comparator.comparing(this::version));
+    }
+
+    /**
+     * Check if a tag name matches the version hint pattern.
+     *
+     * @param configuration The Nisse configuration
+     * @param tagName The full tag name (e.g., "refs/tags/1.0.0-SNAPSHOT")
+     * @return true if the tag matches the version hint pattern
+     */
+    protected boolean isVersionHintTag(NisseConfiguration configuration, String tagName) {
+        String versionHintPattern = configuration
+                .getConfiguration()
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN, DEFAULT_VERSION_HINT_PATTERN);
+
+        // Convert hint pattern to regex pattern (same logic as findVersionHintTags)
+        // First, escape special regex characters in the pattern (except the placeholder)
+        String regexPattern = versionHintPattern
+                .replace(".", "\\.") // Escape literal dots
+                .replace("-", "\\-"); // Escape literal dashes
+
+        // Then replace the placeholder with the version regex
+        regexPattern = regexPattern.replace("${version}", "(\\d+\\.\\d+\\.\\d+)");
+
+        Pattern hintTagPattern = Pattern.compile("refs/tags/v?" + regexPattern);
+
+        return hintTagPattern.matcher(tagName).matches();
     }
 }

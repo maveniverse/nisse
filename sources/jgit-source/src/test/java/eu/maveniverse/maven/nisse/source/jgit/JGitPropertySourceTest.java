@@ -2,6 +2,7 @@ package eu.maveniverse.maven.nisse.source.jgit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
 import java.util.Arrays;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
+import org.eclipse.aether.version.Version;
 import org.junit.jupiter.api.Test;
 
 public class JGitPropertySourceTest {
@@ -215,5 +217,69 @@ public class JGitPropertySourceTest {
         Optional<String> highest = source.findHighestVersionFromHints(hintVersions);
 
         assertFalse(highest.isPresent());
+    }
+
+    @Test
+    void testVersionHintVsGitHistoryComparison() {
+        JGitPropertySource source = new JGitPropertySource();
+
+        // Test case 1: Version hint is lower than git history - should use git history
+        VersionInformation gitHistory1 = new VersionInformation("0.13.0");
+        VersionInformation hint1 = new VersionInformation("0.9.2");
+
+        Version gitHistoryParsed1 = source.version(gitHistory1.toString());
+        Version hintParsed1 = source.version(hint1.toString());
+
+        assertTrue(
+                hintParsed1.compareTo(gitHistoryParsed1) < 0,
+                "Version hint 0.9.2 should be lower than git history 0.13.0");
+
+        // Test case 2: Version hint is higher than git history - should use hint
+        VersionInformation gitHistory2 = new VersionInformation("0.13.0");
+        VersionInformation hint2 = new VersionInformation("0.14.0");
+
+        Version gitHistoryParsed2 = source.version(gitHistory2.toString());
+        Version hintParsed2 = source.version(hint2.toString());
+
+        assertTrue(
+                hintParsed2.compareTo(gitHistoryParsed2) > 0,
+                "Version hint 0.14.0 should be higher than git history 0.13.0");
+
+        // Test case 3: Version hint equals git history - should use git history
+        VersionInformation gitHistory3 = new VersionInformation("0.13.0");
+        VersionInformation hint3 = new VersionInformation("0.13.0");
+
+        Version gitHistoryParsed3 = source.version(gitHistory3.toString());
+        Version hintParsed3 = source.version(hint3.toString());
+
+        assertEquals(
+                0, hintParsed3.compareTo(gitHistoryParsed3), "Version hint 0.13.0 should equal git history 0.13.0");
+    }
+
+    @Test
+    void testIsVersionHintTag() throws Exception {
+        Map<String, String> configMap = new HashMap<>();
+        NisseConfiguration configuration =
+                SimpleNisseConfiguration.builder().withUserProperties(configMap).build();
+
+        JGitPropertySource source = new JGitPropertySource();
+
+        // Test default pattern: ${version}-SNAPSHOT
+        assertTrue(source.isVersionHintTag(configuration, "refs/tags/4.2.0-SNAPSHOT"));
+        assertTrue(source.isVersionHintTag(configuration, "refs/tags/v4.2.0-SNAPSHOT"));
+        assertTrue(source.isVersionHintTag(configuration, "refs/tags/1.0.0-SNAPSHOT"));
+
+        // These should NOT match the version hint pattern
+        assertFalse(source.isVersionHintTag(configuration, "refs/tags/4.2.0"));
+        assertFalse(source.isVersionHintTag(configuration, "refs/tags/v4.2.0"));
+        assertFalse(source.isVersionHintTag(configuration, "refs/tags/release-4.2.0"));
+
+        // Test custom pattern
+        configMap.put("nisse.source.jgit.versionHintPattern", "hint-${version}");
+        NisseConfiguration customConfig =
+                SimpleNisseConfiguration.builder().withUserProperties(configMap).build();
+        assertTrue(source.isVersionHintTag(customConfig, "refs/tags/hint-3.1.0"));
+        assertTrue(source.isVersionHintTag(customConfig, "refs/tags/vhint-3.1.0"));
+        assertFalse(source.isVersionHintTag(customConfig, "refs/tags/3.1.0-SNAPSHOT"));
     }
 }
