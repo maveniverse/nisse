@@ -69,7 +69,7 @@ Set to `true` to enable dynamic version generation. When enabled, adds the `dyna
 1. Searches Git history for semantic version tags (e.g., `v1.2.3`, `1.2.3`)
 2. If current commit has a version tag, uses that version
 3. If current commit doesn't have a tag, increments patch version and adds build number
-4. Falls back to `0.0.1-{commitCount}` if no version tags found
+4. Falls back to `0.1.0-{commitCount}` if no version tags found
 
 #### `nisse.source.jgit.appendSnapshot`
 
