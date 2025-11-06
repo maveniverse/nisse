@@ -14,6 +14,6 @@ assert matcher.find() : "Version information not found in log file"
 // Extract the version from the matched group
 def actualVersion = matcher[0][1]
 
-def expectedVersion = '0.0.1-1-SNAPSHOT'
+def expectedVersion = '0.1.0-1-SNAPSHOT'
 
 assert actualVersion == expectedVersion : "Expected version '${expectedVersion}', but found '${actualVersion}'"

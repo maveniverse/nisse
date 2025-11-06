@@ -115,7 +115,7 @@ public class JGitPropertySource implements PropertySource {
     /**
      * The default version if no version can be determined from git.
      */
-    protected final String defaultVersion = "0.0.1";
+    protected final String defaultVersion = "0.1.0";
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
