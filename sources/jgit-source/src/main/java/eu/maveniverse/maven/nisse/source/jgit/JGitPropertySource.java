@@ -68,6 +68,14 @@ public class JGitPropertySource implements PropertySource {
     private static final String DEFAULT_DYNAMIC_VERSION = Boolean.FALSE.toString();
 
     /**
+     * Whether the buildNumber shall be appended or not.
+     *
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_BUILD_NUMBER = "nisse.source.jgit.appendBuildNumber";
+
+    private static final String DEFAULT_APPEND_BUILD_NUMBER = Boolean.TRUE.toString();
+
+    /**
      * Whether the SNAPSHOT qualifier shall be appended or not.
      *
      */
@@ -325,7 +333,13 @@ public class JGitPropertySource implements PropertySource {
                         return vi;
                     } else {
                         vi.setPatch(vi.getPatch() + 1);
-                        vi.setBuildNumber(count);
+                        boolean appendBuildNumber = Boolean.parseBoolean(configuration
+                                .getConfiguration()
+                                .getOrDefault(
+                                        JGIT_CONF_SYSTEM_PROPERTY_APPEND_BUILD_NUMBER, DEFAULT_APPEND_BUILD_NUMBER));
+                        if (appendBuildNumber) {
+                            vi.setBuildNumber(count);
+                        }
                         return mayAddSnapshotQualifier(configuration, vi);
                     }
                 }
