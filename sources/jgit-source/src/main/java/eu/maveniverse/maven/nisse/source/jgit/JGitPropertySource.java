@@ -269,8 +269,8 @@ public class JGitPropertySource implements PropertySource {
                     // With default pattern, compare versions
                     // Check if git history version is the default (meaning no regular release tags found)
                     boolean isDefaultGitVersion = gitHistoryVersion.getMajor() == 0
-                            && gitHistoryVersion.getMinor() == 0
-                            && gitHistoryVersion.getPatch() == 1;
+                            && gitHistoryVersion.getMinor() == 1
+                            && gitHistoryVersion.getPatch() == 0;
 
                     if (isDefaultGitVersion) {
                         // No regular release tags found, use version hint directly
