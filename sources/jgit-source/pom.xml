@@ -22,7 +22,7 @@
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
-    <version.resolver>1.9.24</version.resolver>
+    <version.resolver>1.9.25</version.resolver>
   </properties>
 
   <dependencies>
