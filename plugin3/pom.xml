@@ -109,7 +109,8 @@
         <configuration>
           <goalPrefix>nisse</goalPrefix>
           <requiredMavenVersion>${requireRuntimeMavenVersion.range}</requiredMavenVersion>
-          <requiredJavaVersion>${requireRuntimeJavaVersion.range}</requiredJavaVersion>
+          <!-- TODO: Fix this -->
+          <requiredJavaVersion>[1.8,)</requiredJavaVersion>
         </configuration>
       </plugin>
     </plugins>
