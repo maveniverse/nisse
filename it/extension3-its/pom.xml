@@ -35,18 +35,25 @@
       <build>
         <plugins>
           <plugin>
-            <groupId>eu.maveniverse.maven.plugins</groupId>
-            <artifactId>toolbox</artifactId>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-dependency-plugin</artifactId>
             <executions>
               <execution>
-                <id>prepare-maven-distros</id>
+                <id>prepare-maven-distro</id>
                 <goals>
-                  <goal>gav-copy</goal>
+                  <goal>unpack</goal>
                 </goals>
                 <phase>generate-test-resources</phase>
                 <configuration>
-                  <sourceSpec>resolve(gav(org.apache.maven:apache-maven:zip:bin:${maven3Version}))</sourceSpec>
-                  <sinkSpec>unpack(${project.build.directory},fixed(dependency))</sinkSpec>
+                  <artifactItems>
+                    <artifactItem>
+                      <groupId>org.apache.maven</groupId>
+                      <artifactId>apache-maven</artifactId>
+                      <version>${maven3Version}</version>
+                      <classifier>bin</classifier>
+                      <type>zip</type>
+                    </artifactItem>
+                  </artifactItems>
                 </configuration>
               </execution>
             </executions>
