@@ -4,28 +4,29 @@ import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.NisseManager;
 import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
+import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.Properties;
 import javax.inject.Inject;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.project.MavenProject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Nisse inject-properties Mojo that injects created properties into project.
+ * Nisse dump-properties Mojo that dumps created properties to output.
+ * Is mostly usable as some diagnostic/setup check.
  */
-@Mojo(name = "inject-properties", threadSafe = true)
-public class InjectPropertiesMojo extends AbstractMojo {
+@Mojo(name = "dump-properties", threadSafe = true)
+public class DumpPropertiesMojo extends AbstractMojo {
     private final Logger logger = LoggerFactory.getLogger(getClass());
-
-    @Inject
-    private MavenProject mavenProject;
 
     @Inject
     private MavenSession mavenSession;
@@ -34,10 +35,11 @@ public class InjectPropertiesMojo extends AbstractMojo {
     private NisseManager nisseManager;
 
     /**
-     * Diagnostic utility, if {@code true}, it will dump to log all the properties it injects into project.
+     * If set, the dump will write out {@link java.util.Properties} into this file, otherwise the dump goes out
+     * to logger.
      */
-    @Parameter(property = "nisse.dump", defaultValue = "false")
-    private boolean dump;
+    @Parameter(property = "nisse.output")
+    private File output;
 
     @Override
     public void execute() throws MojoExecutionException {
@@ -62,12 +64,17 @@ public class InjectPropertiesMojo extends AbstractMojo {
                             PropertyKeyNamingStrategies.defaultStrategy()))
                     .build();
             Map<String, String> properties = nisseManager.createProperties(configuration);
-            if (dump) {
+            if (output == null) {
                 logger.info("Dumping {} properties", properties.size());
                 properties.forEach((k, v) -> logger.info("{}={}", k, v));
+            } else {
+                logger.info("Dumping {} properties to {}", properties.size(), output);
+                try (OutputStream outputStream = Files.newOutputStream(output.toPath())) {
+                    Properties props = new Properties();
+                    props.putAll(properties);
+                    props.store(outputStream, null);
+                }
             }
-            logger.info("Injecting {} properties into project", properties.size());
-            properties.forEach((k, v) -> mavenProject.getProperties().setProperty(k, v));
         } catch (IOException e) {
             throw new MojoExecutionException("Error while creating Nisse configuration", e);
         }
