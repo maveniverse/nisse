@@ -41,7 +41,9 @@ $ mvn validate -N -Dnisse.dump
 ```
 
 The `-N` is needed only if you are in root of some complex multi-module project.
-Note that this only works when Nisse is declared as a ["core extension"](https://maven.apache.org/guides/mini/guide-using-extensions.html) (Maven 3 and 4) through **.mvn/extensions.xml** or as a "user-wide extension" (Maven 4 only) through **~/.m2/extensions.xml**.
+Note that this only works when Nisse is declared as a ["core extension"](https://maven.apache.org/guides/mini/guide-using-extensions.html) 
+(Maven 3 and 4) through **.mvn/extensions.xml** or as a "user-wide extension" (Maven 4 only) through **~/.m2/extensions.xml**.
+Otherwise, one may use `dump-properties` Mojo or the `nisse.dump` property of `inject-properties` Mojo. 
 
 ## Implemented Sources
 
