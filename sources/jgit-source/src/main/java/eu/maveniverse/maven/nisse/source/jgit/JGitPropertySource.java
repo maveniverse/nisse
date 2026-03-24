@@ -84,6 +84,13 @@ public class JGitPropertySource implements PropertySource {
     private static final String DEFAULT_APPEND_SNAPSHOT = Boolean.TRUE.toString();
 
     /**
+     * Whether the DIRTY qualifier shall be appended or not.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY = "nisse.source.jgit.appendDirty";
+
+    private static final String DEFAULT_APPEND_DIRTY = Boolean.TRUE.toString();
+
+    /**
      * Use this version instead of resolving from SCM tag information.
      *
      */
@@ -271,7 +278,7 @@ public class JGitPropertySource implements PropertySource {
 
                 if (isCustomPattern) {
                     // With custom pattern, version hints take priority (git history only contains matching tags)
-                    vi = mayAddSnapshotQualifier(configuration, hintVersion);
+                    vi = mayAddQualifier(configuration, repository, hintVersion);
                     logger.debug("Using version hint (custom pattern): {}", versionHint.get());
                 } else {
                     // With default pattern, compare versions
@@ -282,7 +289,7 @@ public class JGitPropertySource implements PropertySource {
 
                     if (isDefaultGitVersion) {
                         // No regular release tags found, use version hint directly
-                        vi = mayAddSnapshotQualifier(configuration, hintVersion);
+                        vi = mayAddQualifier(configuration, repository, hintVersion);
                         logger.debug("Using version hint (no regular release tags found): {}", versionHint.get());
                     } else {
                         // Compare versions - use hint only if it's higher than git history version
@@ -291,7 +298,7 @@ public class JGitPropertySource implements PropertySource {
 
                         if (hintVersionParsed.compareTo(gitHistoryVersionParsed) > 0) {
                             // Version hint is higher, use it
-                            vi = mayAddSnapshotQualifier(configuration, hintVersion);
+                            vi = mayAddQualifier(configuration, repository, hintVersion);
                             logger.debug("Using version hint (higher than git history): {}", versionHint.get());
                         } else {
                             // Git history version is higher or equal, use it
@@ -340,12 +347,12 @@ public class JGitPropertySource implements PropertySource {
                         if (appendBuildNumber) {
                             vi.setBuildNumber(count);
                         }
-                        return mayAddSnapshotQualifier(configuration, vi);
+                        return mayAddQualifier(configuration, repository, vi);
                     }
                 }
                 count++;
             }
-            return mayAddSnapshotQualifier(configuration, new VersionInformation(defaultVersion + "-" + count));
+            return mayAddQualifier(configuration, repository, new VersionInformation(defaultVersion + "-" + count));
         } catch (GitAPIException e) {
             throw new Exception("Error reading Git information.", e);
         }
@@ -414,12 +421,25 @@ public class JGitPropertySource implements PropertySource {
         }
     }
 
-    protected VersionInformation mayAddSnapshotQualifier(NisseConfiguration configuration, VersionInformation vi) {
+    protected VersionInformation mayAddQualifier(
+            NisseConfiguration configuration, Repository repository, VersionInformation vi) throws Exception {
         boolean appendSnapshot = Boolean.parseBoolean(configuration
                 .getConfiguration()
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_SNAPSHOT, DEFAULT_APPEND_SNAPSHOT));
         if (appendSnapshot) {
             vi.setQualifier("SNAPSHOT");
+        }
+        boolean appendDirty = Boolean.parseBoolean(configuration
+                .getConfiguration()
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY, DEFAULT_APPEND_DIRTY));
+        if (appendDirty) {
+            try {
+                if (!Git.wrap(repository).status().call().isClean()) {
+                    vi.setDirty("DIRTY");
+                }
+            } catch (GitAPIException e) {
+                throw new Exception("Error reading Git information.", e);
+            }
         }
         return vi;
     }

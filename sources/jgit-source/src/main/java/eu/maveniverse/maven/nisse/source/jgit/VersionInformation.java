@@ -62,6 +62,8 @@ public class VersionInformation {
 
     private String qualifier;
 
+    private String dirty;
+
     private void parseBuildNumber(String buildNumberPart) {
         Matcher matcher = BUILD_NUMBER.matcher(buildNumberPart);
         if (matcher.matches()) {
@@ -160,6 +162,14 @@ public class VersionInformation {
         this.qualifier = qualifier;
     }
 
+    public String getDirty() {
+        return dirty;
+    }
+
+    public void setDirty(String dirty) {
+        this.dirty = dirty;
+    }
+
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getMajor());
@@ -176,6 +186,10 @@ public class VersionInformation {
                 sb.append("-");
                 sb.append(this.getQualifier());
             }
+        }
+        if (this.getDirty() != null) {
+        	sb.append("-");
+        	sb.append(this.getDirty());
         }
 
         return sb.toString();
