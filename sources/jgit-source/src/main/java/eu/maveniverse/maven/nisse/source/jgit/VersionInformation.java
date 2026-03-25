@@ -188,8 +188,8 @@ public class VersionInformation {
             }
         }
         if (this.getDirty() != null) {
-        	sb.append("-");
-        	sb.append(this.getDirty());
+            sb.append("-");
+            sb.append(this.getDirty());
         }
 
         return sb.toString();
