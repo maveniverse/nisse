@@ -50,6 +50,8 @@ public class JGitPropertySource implements PropertySource {
 
     private static final String JGIT_COMMIT = "commit";
 
+    private static final String JGIT_SHORT_COMMIT_ID = "shortCommitId";
+
     private static final String JGIT_DATE = "date";
 
     private static final String JGIT_AUTHOR = "author";
@@ -59,6 +61,14 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_DYNAMIC_VERSION = "dynamicVersion";
 
     private static final String JGIT_CLEAN = "clean";
+
+    /**
+     * Specify the length for the short commit id.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_SHORT_COMMIT_ID_LENGTH =
+            "nisse.source.jgit.shortCommitIdLength";
+
+    private static final String DEFAULT_SHORT_COMMIT_ID_LENGTH = "7";
 
     /**
      * Set to {@code true} to enable "dynamic version" feature, it adds the
@@ -155,6 +165,12 @@ public class JGitPropertySource implements PropertySource {
                 RevCommit lastCommit = getLastCommit(git);
 
                 result.put(JGIT_COMMIT, lastCommit.getName());
+                String length = configuration
+                        .getConfiguration()
+                        .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_SHORT_COMMIT_ID_LENGTH, DEFAULT_SHORT_COMMIT_ID_LENGTH);
+                result.put(
+                        JGIT_SHORT_COMMIT_ID,
+                        lastCommit.abbreviate(Integer.parseInt(length)).name());
                 result.put(JGIT_DATE, formatCommitDate(configuration, lastCommit));
                 result.put(
                         JGIT_COMMITTER,
