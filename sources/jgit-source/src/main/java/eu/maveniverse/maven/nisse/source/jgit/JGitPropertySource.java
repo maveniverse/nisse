@@ -60,6 +60,8 @@ public class JGitPropertySource implements PropertySource {
 
     private static final String JGIT_DYNAMIC_VERSION = "dynamicVersion";
 
+    private static final String JGIT_CLEAN = "clean";
+
     /**
      * Specify the length for the short commit id.
      */
@@ -92,6 +94,13 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_SNAPSHOT = "nisse.source.jgit.appendSnapshot";
 
     private static final String DEFAULT_APPEND_SNAPSHOT = Boolean.TRUE.toString();
+
+    /**
+     * Whether the DIRTY qualifier shall be appended or not.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY = "nisse.source.jgit.appendDirty";
+
+    private static final String DEFAULT_APPEND_DIRTY = Boolean.FALSE.toString();
 
     /**
      * Use this version instead of resolving from SCM tag information.
@@ -148,13 +157,13 @@ public class JGitPropertySource implements PropertySource {
     public Map<String, String> getProperties(NisseConfiguration configuration) {
         HashMap<String, String> result = new HashMap<>();
         try (Repository repository = new FileRepositoryBuilder()
-                .readEnvironment()
-                .findGitDir(configuration.getCurrentWorkingDirectory().toFile())
-                .setMustExist(true)
-                .build()) {
-
+                        .readEnvironment()
+                        .findGitDir(configuration.getCurrentWorkingDirectory().toFile())
+                        .setMustExist(true)
+                        .build();
+                Git git = Git.wrap(repository)) {
             if (repository.getDirectory() != null) {
-                RevCommit lastCommit = getLastCommit(repository);
+                RevCommit lastCommit = getLastCommit(git);
 
                 result.put(JGIT_COMMIT, lastCommit.getName());
                 String length = configuration
@@ -170,10 +179,11 @@ public class JGitPropertySource implements PropertySource {
                 result.put(
                         JGIT_AUTHOR,
                         lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
+                result.put(JGIT_CLEAN, Boolean.toString(isClean(git)));
                 if (Boolean.parseBoolean(configuration
                         .getConfiguration()
                         .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
-                    result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, repository));
+                    result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, git));
                 }
             }
         } catch (RepositoryNotFoundException | IllegalArgumentException e) {
@@ -185,8 +195,12 @@ public class JGitPropertySource implements PropertySource {
         return Collections.unmodifiableMap(result);
     }
 
-    private RevCommit getLastCommit(Repository repository) throws NoHeadException, GitAPIException {
-        return Git.wrap(repository).log().setMaxCount(1).call().iterator().next();
+    private RevCommit getLastCommit(Git git) throws NoHeadException, GitAPIException {
+        return git.log().setMaxCount(1).call().iterator().next();
+    }
+
+    private boolean isClean(Git git) throws NoHeadException, GitAPIException {
+        return git.status().call().isClean();
     }
 
     /**
@@ -259,7 +273,7 @@ public class JGitPropertySource implements PropertySource {
         }
     }
 
-    public String resolveDynamicVersion(NisseConfiguration configuration, Repository repository) throws Exception {
+    public String resolveDynamicVersion(NisseConfiguration configuration, Git git) throws Exception {
         VersionInformation vi;
 
         Optional<String> useVersion =
@@ -270,7 +284,7 @@ public class JGitPropertySource implements PropertySource {
             logger.debug("Using explicit version from useVersion property: {}", useVersion.get());
         } else {
             // First, get version from git history (regular release tags)
-            VersionInformation gitHistoryVersion = getVersionFromGit(configuration, repository);
+            VersionInformation gitHistoryVersion = getVersionFromGit(configuration, git);
             logger.debug("Version from git history: {}", gitHistoryVersion.toString());
 
             // Check if using custom version hint pattern
@@ -280,14 +294,14 @@ public class JGitPropertySource implements PropertySource {
             boolean isCustomPattern = !DEFAULT_VERSION_HINT_PATTERN.equals(versionHintPattern);
 
             // Then, check for version hint tags
-            Optional<String> versionHint = findVersionHint(configuration, repository);
+            Optional<String> versionHint = findVersionHint(configuration, git);
             if (versionHint.isPresent()) {
                 VersionInformation hintVersion = new VersionInformation(versionHint.get());
                 logger.debug("Version hint found: {}", hintVersion.toString());
 
                 if (isCustomPattern) {
                     // With custom pattern, version hints take priority (git history only contains matching tags)
-                    vi = mayAddSnapshotQualifier(configuration, hintVersion);
+                    vi = mayAddQualifier(configuration, git, hintVersion);
                     logger.debug("Using version hint (custom pattern): {}", versionHint.get());
                 } else {
                     // With default pattern, compare versions
@@ -298,7 +312,7 @@ public class JGitPropertySource implements PropertySource {
 
                     if (isDefaultGitVersion) {
                         // No regular release tags found, use version hint directly
-                        vi = mayAddSnapshotQualifier(configuration, hintVersion);
+                        vi = mayAddQualifier(configuration, git, hintVersion);
                         logger.debug("Using version hint (no regular release tags found): {}", versionHint.get());
                     } else {
                         // Compare versions - use hint only if it's higher than git history version
@@ -307,7 +321,7 @@ public class JGitPropertySource implements PropertySource {
 
                         if (hintVersionParsed.compareTo(gitHistoryVersionParsed) > 0) {
                             // Version hint is higher, use it
-                            vi = mayAddSnapshotQualifier(configuration, hintVersion);
+                            vi = mayAddQualifier(configuration, git, hintVersion);
                             logger.debug("Using version hint (higher than git history): {}", versionHint.get());
                         } else {
                             // Git history version is higher or equal, use it
@@ -330,11 +344,9 @@ public class JGitPropertySource implements PropertySource {
         return vi.toString();
     }
 
-    protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Repository repository)
-            throws Exception {
-        try (Git git = Git.wrap(repository)) {
-
-            RevCommit lastCommit = getLastCommit(repository);
+    protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git) throws Exception {
+        try {
+            RevCommit lastCommit = getLastCommit(git);
             logger.debug("last commit: {}", lastCommit.toString());
 
             Iterable<RevCommit> commits = git.log().call();
@@ -356,12 +368,12 @@ public class JGitPropertySource implements PropertySource {
                         if (appendBuildNumber) {
                             vi.setBuildNumber(count);
                         }
-                        return mayAddSnapshotQualifier(configuration, vi);
+                        return mayAddQualifier(configuration, git, vi);
                     }
                 }
                 count++;
             }
-            return mayAddSnapshotQualifier(configuration, new VersionInformation(defaultVersion + "-" + count));
+            return mayAddQualifier(configuration, git, new VersionInformation(defaultVersion + "-" + count));
         } catch (GitAPIException e) {
             throw new Exception("Error reading Git information.", e);
         }
@@ -430,12 +442,25 @@ public class JGitPropertySource implements PropertySource {
         }
     }
 
-    protected VersionInformation mayAddSnapshotQualifier(NisseConfiguration configuration, VersionInformation vi) {
+    protected VersionInformation mayAddQualifier(NisseConfiguration configuration, Git git, VersionInformation vi)
+            throws Exception {
         boolean appendSnapshot = Boolean.parseBoolean(configuration
                 .getConfiguration()
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_SNAPSHOT, DEFAULT_APPEND_SNAPSHOT));
         if (appendSnapshot) {
             vi.setQualifier("SNAPSHOT");
+        }
+        boolean appendDirty = Boolean.parseBoolean(configuration
+                .getConfiguration()
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY, DEFAULT_APPEND_DIRTY));
+        if (appendDirty) {
+            try {
+                if (!isClean(git)) {
+                    vi.setDirty("DIRTY");
+                }
+            } catch (GitAPIException e) {
+                throw new Exception("Error reading Git information.", e);
+            }
         }
         return vi;
     }
@@ -446,13 +471,12 @@ public class JGitPropertySource implements PropertySource {
      * environment variable changes, making builds more reproducible.
      *
      * @param configuration The Nisse configuration
-     * @param repository The git repository
+     * @param git The git repository
      * @return Optional version string extracted from hint tags
      * @throws Exception if git operations fail
      */
-    protected Optional<String> findVersionHint(NisseConfiguration configuration, Repository repository)
-            throws Exception {
-        try (Git git = Git.wrap(repository)) {
+    protected Optional<String> findVersionHint(NisseConfiguration configuration, Git git) throws Exception {
+        try {
             String hintPattern = configuration
                     .getConfiguration()
                     .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN, DEFAULT_VERSION_HINT_PATTERN);
