@@ -157,10 +157,11 @@ public class JGitPropertySource implements PropertySource {
     public Map<String, String> getProperties(NisseConfiguration configuration) {
         HashMap<String, String> result = new HashMap<>();
         try (Repository repository = new FileRepositoryBuilder()
-                .readEnvironment()
-                .findGitDir(configuration.getCurrentWorkingDirectory().toFile())
-                .setMustExist(true)
-                .build(); Git git = Git.wrap(repository)) {
+                        .readEnvironment()
+                        .findGitDir(configuration.getCurrentWorkingDirectory().toFile())
+                        .setMustExist(true)
+                        .build();
+                Git git = Git.wrap(repository)) {
             if (repository.getDirectory() != null) {
                 RevCommit lastCommit = getLastCommit(git);
 
@@ -343,8 +344,7 @@ public class JGitPropertySource implements PropertySource {
         return vi.toString();
     }
 
-    protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git)
-            throws Exception {
+    protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git) throws Exception {
         try {
             RevCommit lastCommit = getLastCommit(git);
             logger.debug("last commit: {}", lastCommit.toString());
@@ -442,8 +442,8 @@ public class JGitPropertySource implements PropertySource {
         }
     }
 
-    protected VersionInformation mayAddQualifier(
-            NisseConfiguration configuration, Git git, VersionInformation vi) throws Exception {
+    protected VersionInformation mayAddQualifier(NisseConfiguration configuration, Git git, VersionInformation vi)
+            throws Exception {
         boolean appendSnapshot = Boolean.parseBoolean(configuration
                 .getConfiguration()
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_SNAPSHOT, DEFAULT_APPEND_SNAPSHOT));
@@ -475,8 +475,7 @@ public class JGitPropertySource implements PropertySource {
      * @return Optional version string extracted from hint tags
      * @throws Exception if git operations fail
      */
-    protected Optional<String> findVersionHint(NisseConfiguration configuration, Git git)
-            throws Exception {
+    protected Optional<String> findVersionHint(NisseConfiguration configuration, Git git) throws Exception {
         try {
             String hintPattern = configuration
                     .getConfiguration()
