@@ -99,6 +99,12 @@ If current commit doesn't have a tag, should the count of commits since last tag
 
 Controls whether to append `-DIRTY` qualifier to dynamic versions when the checkout state is dirty.
 
+#### `nisse.source.jgit.dirtyQualifier`
+
+**Default:** `DIRTY`
+
+Controls the DIRTY qualifier, the string to be appended.
+
 #### `nisse.source.jgit.appendSnapshot`
 
 **Default:** `true`

@@ -113,6 +113,13 @@ public class JGitPropertySource implements PropertySource {
     private static final String DEFAULT_APPEND_DIRTY = Boolean.FALSE.toString();
 
     /**
+     * The DIRTY qualifier.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_DIRTY_QUALIFIER = "nisse.source.jgit.dirtyQualifier";
+
+    private static final String DEFAULT_DIRTY_QUALIFIER = "DIRTY";
+
+    /**
      * Use this version instead of resolving from SCM tag information.
      *
      */
@@ -465,23 +472,35 @@ public class JGitPropertySource implements PropertySource {
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY, DEFAULT_APPEND_DIRTY));
         if (appendDirty) {
             if (!isClean(git)) {
-                qualifier = "DIRTY";
+                qualifier = appendQualifier(
+                        qualifier,
+                        configuration
+                                .getConfiguration()
+                                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DIRTY_QUALIFIER, DEFAULT_DIRTY_QUALIFIER));
             }
         }
         boolean appendSnapshot = Boolean.parseBoolean(configuration
                 .getConfiguration()
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_SNAPSHOT, DEFAULT_APPEND_SNAPSHOT));
         if (appendSnapshot) {
-            if (qualifier == null) {
-                qualifier = "SNAPSHOT";
-            } else {
-                qualifier += "-SNAPSHOT";
-            }
+            qualifier = appendQualifier(qualifier, "SNAPSHOT");
         }
+
         if (qualifier != null) {
             vi.setQualifier(qualifier);
         }
         return vi;
+    }
+
+    protected String appendQualifier(String prevQualifier, String appendedQualifier) {
+        if (appendedQualifier == null) {
+            return prevQualifier;
+        }
+        if (prevQualifier == null) {
+            return appendedQualifier;
+        } else {
+            return prevQualifier + "-" + appendedQualifier;
+        }
     }
 
     /**
