@@ -7,9 +7,11 @@ The JGit property source provides Git repository information and supports dynami
 The JGit source (`jgit`) extracts information from the Git repository and provides the following properties:
 
 - `commit`: The SHA-1 hash of the latest commit
+- `shortCommitId`: The short SHA-1 (by default 7 characters) hash of the latest commit
 - `date`: The commit date (configurable format)
 - `author`: The commit author information
 - `committer`: The commit committer information
+- `clean`: The state of checkout, is `true` or `false` whether checkout is clean or dirty
 - `dynamicVersion`: Dynamically generated version based on Git tags (optional)
 
 ## Basic Properties
@@ -57,6 +59,14 @@ Custom date format pattern when `dateFormat` is set to `custom`. Uses Java `Date
 - `dd-MM-yyyy` → `27-05-2024`
 - `HH:mm:ss` → `18:20:45`
 
+### General Configuration
+
+#### `nisse.source.jgit.shortCommitIdLength`
+
+**Default:** `7`
+
+Controls the length of `shortCommitId` property.
+
 ### Dynamic Version Configuration
 
 #### `nisse.source.jgit.dynamicVersion`
@@ -68,8 +78,36 @@ Set to `true` to enable dynamic version generation. When enabled, adds the `dyna
 **Dynamic version logic:**
 1. Searches Git history for semantic version tags (e.g., `v1.2.3`, `1.2.3`)
 2. If current commit has a version tag, uses that version
-3. If current commit doesn't have a tag, increments patch version and adds build number
+3. If current commit doesn't have a tag, increments patch version (see below) and adds build number (see below)
 4. Falls back to `0.1.0-{commitCount}` if no version tags found
+
+#### `nisse.source.jgit.increasePatchVersion`
+
+**Default:** `true`
+
+If current commit doesn't have a tag, should the patch version be incremented or not.
+
+**Warning:** disabling both, this and `nisse.source.jgit.appendBuildNumber` feature will produce same
+versions over and over again (the last found tag). Moreover, disabling this feature, but keeping
+`nisse.source.jgit.appendSnapshot` enabled, will produce "backward", hence Maven versions!
+
+#### `nisse.source.jgit.appendBuildNumber`
+
+**Default:** `true`
+
+If current commit doesn't have a tag, should the count of commits since last tag be appended as build number.
+
+#### `nisse.source.jgit.appendDirty`
+
+**Default:** `false`
+
+Controls whether to append `-DIRTY` qualifier to dynamic versions when the checkout state is dirty.
+
+#### `nisse.source.jgit.dirtyQualifier`
+
+**Default:** `DIRTY`
+
+Controls the DIRTY qualifier, the string to be appended.
 
 #### `nisse.source.jgit.appendSnapshot`
 

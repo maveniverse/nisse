@@ -29,7 +29,6 @@ import org.eclipse.aether.version.Version;
 import org.eclipse.aether.version.VersionScheme;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
@@ -80,8 +79,20 @@ public class JGitPropertySource implements PropertySource {
     private static final String DEFAULT_DYNAMIC_VERSION = Boolean.FALSE.toString();
 
     /**
+     * Whether the patch version shall be increased or not, when calculating dynamic version and there is no tag
+     * on current commit. <strong>To be used with consideration!</strong>
+     * <p>
+     * Warning: disabling both, this and {@link #DEFAULT_APPEND_BUILD_NUMBER} feature will produce same
+     * version over and over again (the last found tag). Moreover, disabling this feature, but keeping
+     * {@link #JGIT_CONF_SYSTEM_PROPERTY_APPEND_SNAPSHOT} enabled, will produce "backward" Maven versions!
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION =
+            "nisse.source.jgit.increasePatchVersion";
+
+    private static final String DEFAULT_INCREASE_PATCH_VERSION = Boolean.TRUE.toString();
+
+    /**
      * Whether the buildNumber shall be appended or not.
-     *
      */
     private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_BUILD_NUMBER = "nisse.source.jgit.appendBuildNumber";
 
@@ -89,7 +100,6 @@ public class JGitPropertySource implements PropertySource {
 
     /**
      * Whether the SNAPSHOT qualifier shall be appended or not.
-     *
      */
     private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_SNAPSHOT = "nisse.source.jgit.appendSnapshot";
 
@@ -101,6 +111,13 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY = "nisse.source.jgit.appendDirty";
 
     private static final String DEFAULT_APPEND_DIRTY = Boolean.FALSE.toString();
+
+    /**
+     * The DIRTY qualifier.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_DIRTY_QUALIFIER = "nisse.source.jgit.dirtyQualifier";
+
+    private static final String DEFAULT_DIRTY_QUALIFIER = "DIRTY";
 
     /**
      * Use this version instead of resolving from SCM tag information.
@@ -195,11 +212,11 @@ public class JGitPropertySource implements PropertySource {
         return Collections.unmodifiableMap(result);
     }
 
-    private RevCommit getLastCommit(Git git) throws NoHeadException, GitAPIException {
+    private RevCommit getLastCommit(Git git) throws GitAPIException {
         return git.log().setMaxCount(1).call().iterator().next();
     }
 
-    private boolean isClean(Git git) throws NoHeadException, GitAPIException {
+    private boolean isClean(Git git) throws GitAPIException {
         return git.status().call().isClean();
     }
 
@@ -297,7 +314,7 @@ public class JGitPropertySource implements PropertySource {
             Optional<String> versionHint = findVersionHint(configuration, git);
             if (versionHint.isPresent()) {
                 VersionInformation hintVersion = new VersionInformation(versionHint.get());
-                logger.debug("Version hint found: {}", hintVersion.toString());
+                logger.debug("Version hint found: {}", hintVersion);
 
                 if (isCustomPattern) {
                     // With custom pattern, version hints take priority (git history only contains matching tags)
@@ -328,7 +345,7 @@ public class JGitPropertySource implements PropertySource {
                             vi = gitHistoryVersion;
                             logger.debug(
                                     "Using git history version (higher than or equal to version hint): {}",
-                                    gitHistoryVersion.toString());
+                                    gitHistoryVersion);
                         }
                     }
                 }
@@ -360,7 +377,14 @@ public class JGitPropertySource implements PropertySource {
                     if (commit.equals(lastCommit)) {
                         return vi;
                     } else {
-                        vi.setPatch(vi.getPatch() + 1);
+                        boolean increasePatchVersion = Boolean.parseBoolean(configuration
+                                .getConfiguration()
+                                .getOrDefault(
+                                        JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION,
+                                        DEFAULT_INCREASE_PATCH_VERSION));
+                        if (increasePatchVersion) {
+                            vi.setPatch(vi.getPatch() + 1);
+                        }
                         boolean appendBuildNumber = Boolean.parseBoolean(configuration
                                 .getConfiguration()
                                 .getOrDefault(
@@ -384,9 +408,7 @@ public class JGitPropertySource implements PropertySource {
         // get tags use semantic version (X.Y.Z or vX.Y.Z) for for commit
         List<String> versionTagsForCommit = getVersionedTagsForCommit(configuration, git, commit);
         logger.debug("commit {} {}: {}", commit.getId(), commit.getShortMessage(), versionTagsForCommit.toString());
-        Optional<VersionInformation> ovi = findHighestVersion(versionTagsForCommit);
-
-        return ovi;
+        return findHighestVersion(versionTagsForCommit);
     }
 
     protected List<String> getVersionedTagsForCommit(NisseConfiguration configuration, Git git, RevCommit commit)
@@ -443,26 +465,42 @@ public class JGitPropertySource implements PropertySource {
     }
 
     protected VersionInformation mayAddQualifier(NisseConfiguration configuration, Git git, VersionInformation vi)
-            throws Exception {
-        boolean appendSnapshot = Boolean.parseBoolean(configuration
-                .getConfiguration()
-                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_SNAPSHOT, DEFAULT_APPEND_SNAPSHOT));
-        if (appendSnapshot) {
-            vi.setQualifier("SNAPSHOT");
-        }
+            throws GitAPIException {
+        String qualifier = null;
         boolean appendDirty = Boolean.parseBoolean(configuration
                 .getConfiguration()
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY, DEFAULT_APPEND_DIRTY));
         if (appendDirty) {
-            try {
-                if (!isClean(git)) {
-                    vi.setDirty("DIRTY");
-                }
-            } catch (GitAPIException e) {
-                throw new Exception("Error reading Git information.", e);
+            if (!isClean(git)) {
+                qualifier = appendQualifier(
+                        qualifier,
+                        configuration
+                                .getConfiguration()
+                                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DIRTY_QUALIFIER, DEFAULT_DIRTY_QUALIFIER));
             }
         }
+        boolean appendSnapshot = Boolean.parseBoolean(configuration
+                .getConfiguration()
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_SNAPSHOT, DEFAULT_APPEND_SNAPSHOT));
+        if (appendSnapshot) {
+            qualifier = appendQualifier(qualifier, "SNAPSHOT");
+        }
+
+        if (qualifier != null) {
+            vi.setQualifier(qualifier);
+        }
         return vi;
+    }
+
+    protected String appendQualifier(String prevQualifier, String appendedQualifier) {
+        if (appendedQualifier == null) {
+            return prevQualifier;
+        }
+        if (prevQualifier == null) {
+            return appendedQualifier;
+        } else {
+            return prevQualifier + "-" + appendedQualifier;
+        }
     }
 
     /**
