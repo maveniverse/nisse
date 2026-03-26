@@ -87,6 +87,10 @@ Set to `true` to enable dynamic version generation. When enabled, adds the `dyna
 
 If current commit doesn't have a tag, should the patch version be incremented or not.
 
+**Warning:** disabling both, this and `nisse.source.jgit.appendBuildNumber` feature will produce same
+versions over and over again (the last found tag). Moreover, disabling this feature, but keeping
+`nisse.source.jgit.appendSnapshot` enabled, will produce "backward", hence Maven versions!
+
 #### `nisse.source.jgit.appendBuildNumber`
 
 **Default:** `true`
