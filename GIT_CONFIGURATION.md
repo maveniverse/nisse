@@ -18,7 +18,7 @@ The JGit source (`jgit`) extracts information from the Git repository and provid
 
 ### Always Available Properties
 
-Table below lists always available properties with their full (prefixed, as usable in POM) properties:
+Table below lists always available properties with their full (prefixed, as usable in POM) property keys:
 
 | Property                   | Description                    | Example                                           |
 |----------------------------|--------------------------------|---------------------------------------------------|
