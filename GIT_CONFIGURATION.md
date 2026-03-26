@@ -18,14 +18,16 @@ The JGit source (`jgit`) extracts information from the Git repository and provid
 
 ### Always Available Properties
 
-| Property        | Description                    | Example                                           |
-|-----------------|--------------------------------|---------------------------------------------------|
-| `commit`        | Latest commit SHA-1 hash       | `a1b2c3d4e5f6789012345678901234567890abcd`        |
-| `shortCommitId` | Latest commit short SHA-1 hash | `a1b2c3d`                                         |
-| `date`          | Commit timestamp               | `Mon May 27 18:20:45 2024 +0200` (default format) |
-| `author`        | Commit author                  | `John Doe <john.doe@example.com>`                 |
-| `committer`     | Commit committer               | `John Doe <john.doe@example.com>`                 |
-| `clean`         | Checkout state (boolean)       | `true` (if checkout is clean)                     |
+Table below lists always available properties with their full (prefixed, as usable in POM) properties:
+
+| Property                   | Description                    | Example                                           |
+|----------------------------|--------------------------------|---------------------------------------------------|
+| `nisse.jgit.commit`        | Latest commit SHA-1 hash       | `a1b2c3d4e5f6789012345678901234567890abcd`        |
+| `nisse.jgit.shortCommitId` | Latest commit short SHA-1 hash | `a1b2c3d`                                         |
+| `nisse.jgit.date`          | Commit timestamp               | `Mon May 27 18:20:45 2024 +0200` (default format) |
+| `nisse.jgit.author`        | Commit author                  | `John Doe <john.doe@example.com>`                 |
+| `nisse.jgit.committer`     | Commit committer               | `John Doe <john.doe@example.com>`                 |
+| `nisse.jgit.clean`         | Checkout state (boolean)       | `true` (if checkout is clean)                     |
 
 ## Configuration Properties
 
