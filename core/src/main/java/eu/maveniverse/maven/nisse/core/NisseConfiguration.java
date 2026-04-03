@@ -31,6 +31,16 @@ public interface NisseConfiguration {
     String COMPAT_OS_DETECTOR = PROPERTY_PREFIX + "compat.osDetector";
 
     /**
+     * The key to use to store this instance in session.
+     */
+    String CONFIGURATION_INSTANCE_KEY = PROPERTY_PREFIX + "configurationInstance";
+
+    /**
+     * Inliner config: Key to suppress inliner cleanup. To suppress, set this property to {@code true}.
+     */
+    String CONFIGURATION_INLINER_SUPPRESS_CLEANUP = PROPERTY_PREFIX + "inliner.suppressCleanup";
+
+    /**
      * Returns immutable map of session effective system properties, never {@code null}.
      */
     Map<String, String> getSystemProperties();
