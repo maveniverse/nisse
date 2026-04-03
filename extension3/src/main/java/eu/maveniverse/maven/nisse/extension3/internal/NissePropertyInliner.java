@@ -90,12 +90,14 @@ final class NissePropertyInliner {
                 .getConfiguration()
                 .getOrDefault(NisseConfiguration.CONFIGURATION_INLINER_SUPPRESS_CLEANUP, Boolean.FALSE.toString()))) {
             logger.info("Nisse property inliner cleanup is suppressed by configuration");
-            return;
         } else {
             Set<Path> inlinedPoms = inlinedPoms(session);
-            logger.info("Nisse property inliner cleanup: {}", inlinedPoms);
-            for (Path inlinedPom : inlinedPoms) {
-                Files.deleteIfExists(inlinedPom);
+            if (!inlinedPoms.isEmpty()) {
+                logger.info("Nisse property inliner cleanup of {} inlined POMs", inlinedPoms.size());
+                for (Path inlinedPom : inlinedPoms) {
+                    logger.debug("Nisse property inliner cleanup: {}", inlinedPom);
+                    Files.deleteIfExists(inlinedPom);
+                }
             }
         }
     }
