@@ -30,9 +30,16 @@ import org.slf4j.LoggerFactory;
 @Singleton
 @Named
 final class NissePropertyInliner {
-    private static final String INLINED_POM_PATH_KEY = NissePropertyInliner.class.getName() + ".inlined";
+    /**
+     * Session data store {@code Set<Path>} that holds all the POM paths that have been inlined, and need cleanup.
+     */
+    private static final String INLINED_POM_PATHS_KEY = NissePropertyInliner.class.getName() + ".inlined";
 
+    /**
+     * Session data stored {@code Set<String>} that holds those keys that cause that POM needs to be inlined.
+     */
     private static final String NEEDS_INLINING_COLLECTION = NisseConfiguration.PROPERTY_PREFIX + "needs-inlining";
+
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
     @SuppressWarnings("unchecked")
@@ -46,7 +53,9 @@ final class NissePropertyInliner {
         return inlinedKeys;
     }
 
-    void mayInlinePom(MavenSession session, Collection<MavenProject> mavenProjects) throws IOException {
+    void mayInlinePom(
+            MavenSession session, Collection<MavenProject> mavenProjects, NisseConfiguration nisseConfiguration)
+            throws IOException {
         Collection<String> inlinedKeys = inlinedKeys(session);
         if (!inlinedKeys.isEmpty()) {
             Map<String, String> inlinedProperties = new HashMap<>();
@@ -65,7 +74,7 @@ final class NissePropertyInliner {
                     // needs rewrite
                     logger.info(" * {}:{} needs inlining", mavenProject.getGroupId(), mavenProject.getArtifactId());
                     Path inlinedPomPath = pomPath.getParent().resolve(".inlined-" + pomPath.getFileName());
-                    session.getRepositorySession().getData().set(INLINED_POM_PATH_KEY, inlinedPomPath);
+                    inlinedPoms(session).add(inlinedPomPath);
                     inline(pomPath, inlinedPomPath, inlinedProperties);
                     mavenProject.setPomFile(inlinedPomPath.toFile());
                 }
@@ -75,11 +84,27 @@ final class NissePropertyInliner {
         }
     }
 
-    void cleanup(MavenSession session, Collection<MavenProject> mavenProjects) throws IOException {
-        Path inlinedPom = (Path) session.getRepositorySession().getData().get(INLINED_POM_PATH_KEY);
-        if (inlinedPom != null) {
-            Files.deleteIfExists(inlinedPom);
+    void cleanup(MavenSession session, Collection<MavenProject> mavenProjects, NisseConfiguration nisseConfiguration)
+            throws IOException {
+        if (Boolean.parseBoolean(nisseConfiguration
+                .getConfiguration()
+                .getOrDefault(NisseConfiguration.CONFIGURATION_INLINER_SUPPRESS_CLEANUP, Boolean.FALSE.toString()))) {
+            logger.info("Nisse property inliner cleanup is suppressed by configuration");
+            return;
+        } else {
+            Set<Path> inlinedPoms = inlinedPoms(session);
+            logger.info("Nisse property inliner cleanup: {}", inlinedPoms);
+            for (Path inlinedPom : inlinedPoms) {
+                Files.deleteIfExists(inlinedPom);
+            }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<Path> inlinedPoms(MavenSession session) {
+        return (Set<Path>) session.getRepositorySession()
+                .getData()
+                .computeIfAbsent(INLINED_POM_PATHS_KEY, ConcurrentHashMap::newKeySet);
     }
 
     private boolean isAnyKeyPresent(Map<String, String> inlinedProperties, Path file) throws IOException {
@@ -111,5 +136,6 @@ final class NissePropertyInliner {
                 Files.lines(sourcePom, StandardCharsets.UTF_8).map(replacer)) {
             Files.write(targetPom, lines.collect(Collectors.toList()), StandardCharsets.UTF_8);
         }
+        logger.debug("Nisse property inliner inlined: {} -> {}", sourcePom, targetPom);
     }
 }

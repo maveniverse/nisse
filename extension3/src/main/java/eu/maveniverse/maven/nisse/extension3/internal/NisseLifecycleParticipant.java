@@ -58,6 +58,7 @@ class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
                     logger.info("Nisse property {} configured for inlining", inlinedKey);
                 }
             }
+            session.getRepositorySession().getData().set(NisseConfiguration.CONFIGURATION_INSTANCE_KEY, configuration);
         } catch (IOException e) {
             throw new MavenExecutionException("Error while creating Nisse configuration", e);
         }
@@ -66,7 +67,8 @@ class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
     @Override
     public void afterProjectsRead(MavenSession session) throws MavenExecutionException {
         try {
-            inliner.mayInlinePom(session, session.getProjects());
+            inliner.mayInlinePom(session, session.getProjects(), (NisseConfiguration)
+                    session.getRepositorySession().getData().get(NisseConfiguration.CONFIGURATION_INSTANCE_KEY));
         } catch (IOException e) {
             throw new MavenExecutionException("Nisse failed to inline", e);
         }
@@ -75,7 +77,8 @@ class NisseLifecycleParticipant extends AbstractMavenLifecycleParticipant {
     @Override
     public void afterSessionEnd(MavenSession session) throws MavenExecutionException {
         try {
-            inliner.cleanup(session, session.getProjects());
+            inliner.cleanup(session, session.getProjects(), (NisseConfiguration)
+                    session.getRepositorySession().getData().get(NisseConfiguration.CONFIGURATION_INSTANCE_KEY));
         } catch (IOException e) {
             throw new MavenExecutionException("Nisse failed to inline", e);
         }
