@@ -254,6 +254,8 @@ public class JGitPropertySource implements PropertySource {
                 if (ref != null) {
                     return ref.getObjectId();
                 }
+                // Worktree HEAD points to a branch that doesn't exist yet
+                return null;
             } else {
                 return ObjectId.fromString(headContent);
             }
