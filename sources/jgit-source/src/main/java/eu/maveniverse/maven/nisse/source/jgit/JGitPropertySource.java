@@ -272,7 +272,11 @@ public class JGitPropertySource implements PropertySource {
     }
 
     private RevCommit getLastCommit(Git git, ObjectId head) throws GitAPIException, IOException {
-        return git.log().add(head).setMaxCount(1).call().iterator().next();
+        if (head != null) {
+            return git.log().add(head).setMaxCount(1).call().iterator().next();
+        }
+        // Fall back to default HEAD resolution — throws NoHeadException if no HEAD exists
+        return git.log().setMaxCount(1).call().iterator().next();
     }
 
     private boolean isClean(Git git) throws GitAPIException {
@@ -434,7 +438,8 @@ public class JGitPropertySource implements PropertySource {
             RevCommit lastCommit = getLastCommit(git, head);
             logger.debug("last commit: {}", lastCommit.toString());
 
-            Iterable<RevCommit> commits = git.log().add(head).call();
+            Iterable<RevCommit> commits =
+                    head != null ? git.log().add(head).call() : git.log().call();
             int count = 0;
             for (RevCommit commit : commits) {
                 Optional<VersionInformation> ovi = getHighestVersionTagForCommit(configuration, git, commit);
