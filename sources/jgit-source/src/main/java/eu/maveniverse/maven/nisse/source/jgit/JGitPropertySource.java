@@ -178,31 +178,54 @@ public class JGitPropertySource implements PropertySource {
     @Override
     public Map<String, String> getProperties(NisseConfiguration configuration) {
         HashMap<String, String> result = new HashMap<>();
-        try (Repository repository = openRepository(configuration);
-                Git git = Git.wrap(repository)) {
-            if (repository.getDirectory() != null) {
-                ObjectId head = resolveHead(configuration, repository);
-                RevCommit lastCommit = getLastCommit(git, head);
+        try {
+            File cwd = configuration.getCurrentWorkingDirectory().toFile();
+            FileRepositoryBuilder builder =
+                    new FileRepositoryBuilder().readEnvironment().findGitDir(cwd);
+            Path worktreeGitDir = null;
 
-                result.put(JGIT_COMMIT, lastCommit.getName());
-                String length = configuration
-                        .getConfiguration()
-                        .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_SHORT_COMMIT_ID_LENGTH, DEFAULT_SHORT_COMMIT_ID_LENGTH);
-                result.put(
-                        JGIT_SHORT_COMMIT_ID,
-                        lastCommit.abbreviate(Integer.parseInt(length)).name());
-                result.put(JGIT_DATE, formatCommitDate(configuration, lastCommit));
-                result.put(
-                        JGIT_COMMITTER,
-                        lastCommit.getCommitterIdent().toExternalString().split(">")[0] + ">");
-                result.put(
-                        JGIT_AUTHOR,
-                        lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
-                result.put(JGIT_CLEAN, Boolean.toString(isClean(git)));
-                if (Boolean.parseBoolean(configuration
-                        .getConfiguration()
-                        .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
-                    result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, git, head));
+            File gitDir = builder.getGitDir();
+            if (gitDir != null) {
+                Path commonDirFile = gitDir.toPath().resolve("commondir");
+                if (Files.exists(commonDirFile)) {
+                    worktreeGitDir = gitDir.toPath();
+                    String commonDirRef = new String(Files.readAllBytes(commonDirFile), StandardCharsets.UTF_8).trim();
+                    File commonDir =
+                            gitDir.toPath().resolve(commonDirRef).normalize().toFile();
+                    logger.debug("Detected git worktree: gitDir={}, commonDir={}", gitDir, commonDir);
+                    builder.setGitDir(commonDir);
+                    builder.setWorkTree(cwd);
+                    builder.setIndexFile(worktreeGitDir.resolve("index").toFile());
+                }
+            }
+
+            try (Repository repository = builder.setMustExist(true).build();
+                    Git git = Git.wrap(repository)) {
+                if (repository.getDirectory() != null) {
+                    ObjectId head = resolveHead(repository, worktreeGitDir);
+                    RevCommit lastCommit = getLastCommit(git, head);
+
+                    result.put(JGIT_COMMIT, lastCommit.getName());
+                    String length = configuration
+                            .getConfiguration()
+                            .getOrDefault(
+                                    JGIT_CONF_SYSTEM_PROPERTY_SHORT_COMMIT_ID_LENGTH, DEFAULT_SHORT_COMMIT_ID_LENGTH);
+                    result.put(
+                            JGIT_SHORT_COMMIT_ID,
+                            lastCommit.abbreviate(Integer.parseInt(length)).name());
+                    result.put(JGIT_DATE, formatCommitDate(configuration, lastCommit));
+                    result.put(
+                            JGIT_COMMITTER,
+                            lastCommit.getCommitterIdent().toExternalString().split(">")[0] + ">");
+                    result.put(
+                            JGIT_AUTHOR,
+                            lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
+                    result.put(JGIT_CLEAN, Boolean.toString(isClean(git)));
+                    if (Boolean.parseBoolean(configuration
+                            .getConfiguration()
+                            .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
+                        result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, git, head));
+                    }
                 }
             }
         } catch (RepositoryNotFoundException | IllegalArgumentException e) {
@@ -215,56 +238,24 @@ public class JGitPropertySource implements PropertySource {
     }
 
     /**
-     * Opens the git repository for the given configuration. Handles git worktrees where {@code .git}
-     * is a file containing a {@code gitdir:} pointer rather than a directory.
-     * <p>
-     * JGit 5.x does not natively support worktrees, so this method detects the worktree case by
-     * checking for a {@code commondir} file in the resolved git directory and redirects to the
-     * common (shared) git directory for access to objects, refs, and tags.
+     * Resolves the HEAD commit id. In a worktree, HEAD is stored in the worktree-specific git
+     * directory rather than the common directory, so this method reads it from the correct location.
+     *
+     * @param repository the repository (opened against the common dir)
+     * @param worktreeGitDir the worktree-specific git directory, or {@code null} for normal repos
      */
-    private Repository openRepository(NisseConfiguration configuration) throws IOException {
-        File cwd = configuration.getCurrentWorkingDirectory().toFile();
-        FileRepositoryBuilder builder =
-                new FileRepositoryBuilder().readEnvironment().findGitDir(cwd);
-
-        File gitDir = builder.getGitDir();
-        if (gitDir != null) {
-            Path commonDirFile = gitDir.toPath().resolve("commondir");
-            if (Files.exists(commonDirFile)) {
-                String commonDirRef = new String(Files.readAllBytes(commonDirFile), StandardCharsets.UTF_8).trim();
-                File commonDir =
-                        gitDir.toPath().resolve(commonDirRef).normalize().toFile();
-                logger.debug("Detected git worktree: gitDir={}, commonDir={}", gitDir, commonDir);
-                builder.setGitDir(commonDir);
-            }
-        }
-
-        return builder.setMustExist(true).build();
-    }
-
-    /**
-     * Resolves the HEAD commit id for the current working directory. In a worktree, HEAD is stored
-     * in the worktree-specific git directory rather than the common directory, so this method reads
-     * it from the correct location.
-     */
-    private ObjectId resolveHead(NisseConfiguration configuration, Repository repository) throws IOException {
-        File cwd = configuration.getCurrentWorkingDirectory().toFile();
-        File gitDir = new FileRepositoryBuilder().findGitDir(cwd).getGitDir();
-
-        if (gitDir != null) {
-            Path commonDirFile = gitDir.toPath().resolve("commondir");
-            if (Files.exists(commonDirFile)) {
-                Path headFile = gitDir.toPath().resolve("HEAD");
-                String headContent = new String(Files.readAllBytes(headFile), StandardCharsets.UTF_8).trim();
-                if (headContent.startsWith("ref: ")) {
-                    String refName = headContent.substring(5);
-                    Ref ref = repository.exactRef(refName);
-                    if (ref != null) {
-                        return ref.getObjectId();
-                    }
-                } else {
-                    return ObjectId.fromString(headContent);
+    private ObjectId resolveHead(Repository repository, Path worktreeGitDir) throws IOException {
+        if (worktreeGitDir != null) {
+            Path headFile = worktreeGitDir.resolve("HEAD");
+            String headContent = new String(Files.readAllBytes(headFile), StandardCharsets.UTF_8).trim();
+            if (headContent.startsWith("ref: ")) {
+                String refName = headContent.substring(5);
+                Ref ref = repository.exactRef(refName);
+                if (ref != null) {
+                    return ref.getObjectId();
                 }
+            } else {
+                return ObjectId.fromString(headContent);
             }
         }
 
