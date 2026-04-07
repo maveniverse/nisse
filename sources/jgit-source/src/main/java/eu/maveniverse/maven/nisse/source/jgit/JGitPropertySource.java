@@ -9,6 +9,11 @@ package eu.maveniverse.maven.nisse.source.jgit;
 
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.PropertySource;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -173,34 +178,54 @@ public class JGitPropertySource implements PropertySource {
     @Override
     public Map<String, String> getProperties(NisseConfiguration configuration) {
         HashMap<String, String> result = new HashMap<>();
-        try (Repository repository = new FileRepositoryBuilder()
-                        .readEnvironment()
-                        .findGitDir(configuration.getCurrentWorkingDirectory().toFile())
-                        .setMustExist(true)
-                        .build();
-                Git git = Git.wrap(repository)) {
-            if (repository.getDirectory() != null) {
-                RevCommit lastCommit = getLastCommit(git);
+        try {
+            File cwd = configuration.getCurrentWorkingDirectory().toFile();
+            FileRepositoryBuilder builder =
+                    new FileRepositoryBuilder().readEnvironment().findGitDir(cwd);
+            Path worktreeGitDir = null;
 
-                result.put(JGIT_COMMIT, lastCommit.getName());
-                String length = configuration
-                        .getConfiguration()
-                        .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_SHORT_COMMIT_ID_LENGTH, DEFAULT_SHORT_COMMIT_ID_LENGTH);
-                result.put(
-                        JGIT_SHORT_COMMIT_ID,
-                        lastCommit.abbreviate(Integer.parseInt(length)).name());
-                result.put(JGIT_DATE, formatCommitDate(configuration, lastCommit));
-                result.put(
-                        JGIT_COMMITTER,
-                        lastCommit.getCommitterIdent().toExternalString().split(">")[0] + ">");
-                result.put(
-                        JGIT_AUTHOR,
-                        lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
-                result.put(JGIT_CLEAN, Boolean.toString(isClean(git)));
-                if (Boolean.parseBoolean(configuration
-                        .getConfiguration()
-                        .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
-                    result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, git));
+            File gitDir = builder.getGitDir();
+            if (gitDir != null) {
+                Path commonDirFile = gitDir.toPath().resolve("commondir");
+                if (Files.exists(commonDirFile)) {
+                    worktreeGitDir = gitDir.toPath();
+                    String commonDirRef = new String(Files.readAllBytes(commonDirFile), StandardCharsets.UTF_8).trim();
+                    File commonDir =
+                            gitDir.toPath().resolve(commonDirRef).normalize().toFile();
+                    logger.debug("Detected git worktree: gitDir={}, commonDir={}", gitDir, commonDir);
+                    builder.setGitDir(commonDir);
+                    builder.setWorkTree(cwd);
+                    builder.setIndexFile(worktreeGitDir.resolve("index").toFile());
+                }
+            }
+
+            try (Repository repository = builder.setMustExist(true).build();
+                    Git git = Git.wrap(repository)) {
+                if (repository.getDirectory() != null) {
+                    ObjectId head = resolveHead(repository, worktreeGitDir);
+                    RevCommit lastCommit = getLastCommit(git, head);
+
+                    result.put(JGIT_COMMIT, lastCommit.getName());
+                    String length = configuration
+                            .getConfiguration()
+                            .getOrDefault(
+                                    JGIT_CONF_SYSTEM_PROPERTY_SHORT_COMMIT_ID_LENGTH, DEFAULT_SHORT_COMMIT_ID_LENGTH);
+                    result.put(
+                            JGIT_SHORT_COMMIT_ID,
+                            lastCommit.abbreviate(Integer.parseInt(length)).name());
+                    result.put(JGIT_DATE, formatCommitDate(configuration, lastCommit));
+                    result.put(
+                            JGIT_COMMITTER,
+                            lastCommit.getCommitterIdent().toExternalString().split(">")[0] + ">");
+                    result.put(
+                            JGIT_AUTHOR,
+                            lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
+                    result.put(JGIT_CLEAN, Boolean.toString(isClean(git)));
+                    if (Boolean.parseBoolean(configuration
+                            .getConfiguration()
+                            .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
+                        result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, git, head));
+                    }
                 }
             }
         } catch (RepositoryNotFoundException | IllegalArgumentException e) {
@@ -212,7 +237,38 @@ public class JGitPropertySource implements PropertySource {
         return Collections.unmodifiableMap(result);
     }
 
-    private RevCommit getLastCommit(Git git) throws GitAPIException {
+    /**
+     * Resolves the HEAD commit id. In a worktree, HEAD is stored in the worktree-specific git
+     * directory rather than the common directory, so this method reads it from the correct location.
+     *
+     * @param repository the repository (opened against the common dir)
+     * @param worktreeGitDir the worktree-specific git directory, or {@code null} for normal repos
+     */
+    private ObjectId resolveHead(Repository repository, Path worktreeGitDir) throws IOException {
+        if (worktreeGitDir != null) {
+            Path headFile = worktreeGitDir.resolve("HEAD");
+            String headContent = new String(Files.readAllBytes(headFile), StandardCharsets.UTF_8).trim();
+            if (headContent.startsWith("ref: ")) {
+                String refName = headContent.substring(5);
+                Ref ref = repository.exactRef(refName);
+                if (ref != null) {
+                    return ref.getObjectId();
+                }
+                // Worktree HEAD points to a branch that doesn't exist yet
+                return null;
+            } else {
+                return ObjectId.fromString(headContent);
+            }
+        }
+
+        return repository.resolve("HEAD");
+    }
+
+    private RevCommit getLastCommit(Git git, ObjectId head) throws GitAPIException, IOException {
+        if (head != null) {
+            return git.log().add(head).setMaxCount(1).call().iterator().next();
+        }
+        // Fall back to default HEAD resolution — throws NoHeadException if no HEAD exists
         return git.log().setMaxCount(1).call().iterator().next();
     }
 
@@ -291,6 +347,10 @@ public class JGitPropertySource implements PropertySource {
     }
 
     public String resolveDynamicVersion(NisseConfiguration configuration, Git git) throws Exception {
+        return resolveDynamicVersion(configuration, git, git.getRepository().resolve("HEAD"));
+    }
+
+    String resolveDynamicVersion(NisseConfiguration configuration, Git git, ObjectId head) throws Exception {
         VersionInformation vi;
 
         Optional<String> useVersion =
@@ -301,7 +361,7 @@ public class JGitPropertySource implements PropertySource {
             logger.debug("Using explicit version from useVersion property: {}", useVersion.get());
         } else {
             // First, get version from git history (regular release tags)
-            VersionInformation gitHistoryVersion = getVersionFromGit(configuration, git);
+            VersionInformation gitHistoryVersion = getVersionFromGit(configuration, git, head);
             logger.debug("Version from git history: {}", gitHistoryVersion.toString());
 
             // Check if using custom version hint pattern
@@ -362,11 +422,17 @@ public class JGitPropertySource implements PropertySource {
     }
 
     protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git) throws Exception {
+        return getVersionFromGit(configuration, git, git.getRepository().resolve("HEAD"));
+    }
+
+    protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git, ObjectId head)
+            throws Exception {
         try {
-            RevCommit lastCommit = getLastCommit(git);
+            RevCommit lastCommit = getLastCommit(git, head);
             logger.debug("last commit: {}", lastCommit.toString());
 
-            Iterable<RevCommit> commits = git.log().call();
+            Iterable<RevCommit> commits =
+                    head != null ? git.log().add(head).call() : git.log().call();
             int count = 0;
             for (RevCommit commit : commits) {
                 Optional<VersionInformation> ovi = getHighestVersionTagForCommit(configuration, git, commit);
