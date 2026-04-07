@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import eu.maveniverse.maven.nisse.core.NisseConfiguration;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -13,6 +16,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 import org.eclipse.aether.version.Version;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class JGitPropertySourceTest {
     @Test
@@ -281,5 +285,79 @@ public class JGitPropertySourceTest {
         assertTrue(source.isVersionHintTag(customConfig, "refs/tags/hint-3.1.0"));
         assertTrue(source.isVersionHintTag(customConfig, "refs/tags/vhint-3.1.0"));
         assertFalse(source.isVersionHintTag(customConfig, "refs/tags/3.1.0-SNAPSHOT"));
+    }
+
+    @Test
+    void testWorktreeSupport(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file.txt");
+        exec(mainRepo, "git", "commit", "-m", "initial commit");
+        exec(mainRepo, "git", "tag", "v1.0.0");
+
+        // Create a worktree with an additional commit
+        Path worktree = tempDir.resolve("worktree");
+        exec(mainRepo, "git", "worktree", "add", worktree.toString());
+        Files.write(worktree.resolve("worktree-file.txt"), "worktree".getBytes(StandardCharsets.UTF_8));
+        exec(worktree, "git", "add", "worktree-file.txt");
+        exec(worktree, "git", "commit", "-m", "worktree commit");
+
+        String mainCommit = execOutput(mainRepo, "git", "rev-parse", "HEAD").trim();
+        String worktreeCommit = execOutput(worktree, "git", "rev-parse", "HEAD").trim();
+        assertNotEquals(mainCommit, worktreeCommit, "Worktree should have a different HEAD");
+
+        // JGitPropertySource should work from the worktree directory
+        JGitPropertySource source = new JGitPropertySource();
+        Map<String, String> properties = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(worktree)
+                .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty when opened from a worktree");
+        assertEquals(worktreeCommit, properties.get("commit"), "Should resolve worktree HEAD, not main HEAD");
+
+        // Verify the main repo still works
+        Map<String, String> mainProperties = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(mainRepo)
+                .build());
+        assertEquals(mainCommit, mainProperties.get("commit"), "Main repo should still work");
+    }
+
+    private static void exec(Path workDir, String... command) throws Exception {
+        Process process = new ProcessBuilder(command)
+                .directory(workDir.toFile())
+                .redirectErrorStream(true)
+                .start();
+        byte[] buf = new byte[4096];
+        while (process.getInputStream().read(buf) != -1) {
+            // drain
+        }
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new RuntimeException("Command failed with exit code " + exitCode + ": " + String.join(" ", command));
+        }
+    }
+
+    private static String execOutput(Path workDir, String... command) throws Exception {
+        Process process = new ProcessBuilder(command)
+                .directory(workDir.toFile())
+                .redirectErrorStream(true)
+                .start();
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        byte[] buf = new byte[4096];
+        int n;
+        while ((n = process.getInputStream().read(buf)) != -1) {
+            baos.write(buf, 0, n);
+        }
+        int exitCode = process.waitFor();
+        String output = new String(baos.toByteArray(), StandardCharsets.UTF_8);
+        if (exitCode != 0) {
+            throw new RuntimeException("Command failed: " + String.join(" ", command) + "\n" + output);
+        }
+        return output;
     }
 }
