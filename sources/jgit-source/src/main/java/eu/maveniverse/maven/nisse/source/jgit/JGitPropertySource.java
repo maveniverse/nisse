@@ -226,7 +226,7 @@ public class JGitPropertySource implements PropertySource {
 
                     Optional<Ref> localBranch = localBranch(git, head);
                     localBranch
-                            .map(r -> r.getName().replace("refs/heads/", ""))
+                            .map(r -> Repository.shortenRefName(r.getName()))
                             .ifPresent(branchName -> result.put(JGIT_BRANCH_NAME, branchName));
 
                     if (Boolean.parseBoolean(configuration
