@@ -35,6 +35,7 @@ import org.eclipse.aether.version.VersionScheme;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
@@ -65,6 +66,8 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_DYNAMIC_VERSION = "dynamicVersion";
 
     private static final String JGIT_CLEAN = "clean";
+
+    private static final String JGIT_BRANCH_NAME = "branchName";
 
     /**
      * Specify the length for the short commit id.
@@ -221,6 +224,12 @@ public class JGitPropertySource implements PropertySource {
                             JGIT_AUTHOR,
                             lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
                     result.put(JGIT_CLEAN, Boolean.toString(isClean(git)));
+
+                    Optional<Ref> localBranch = localBranch(git, head);
+                    localBranch
+                            .map(r -> Repository.shortenRefName(r.getName()))
+                            .ifPresent(branchName -> result.put(JGIT_BRANCH_NAME, branchName));
+
                     if (Boolean.parseBoolean(configuration
                             .getConfiguration()
                             .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
@@ -274,6 +283,15 @@ public class JGitPropertySource implements PropertySource {
 
     private boolean isClean(Git git) throws GitAPIException {
         return git.status().call().isClean();
+    }
+
+    private Optional<Ref> localBranch(Git git, ObjectId head) throws GitAPIException {
+        if (head == null) {
+            return Optional.empty();
+        }
+        return git.branchList().call().stream()
+                .filter(ref -> head.equals(ref.getObjectId()) && !Constants.HEAD.equals(ref.getName()))
+                .findFirst();
     }
 
     /**

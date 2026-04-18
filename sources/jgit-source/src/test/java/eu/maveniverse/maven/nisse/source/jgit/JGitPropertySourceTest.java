@@ -327,6 +327,156 @@ public class JGitPropertySourceTest {
         assertEquals(mainCommit, mainProperties.get("commit"), "Main repo should still work");
     }
 
+    @Test
+    void testBranchNameSimple(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init", "-b", "master");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file.txt");
+        exec(mainRepo, "git", "commit", "-m", "initial commit");
+        exec(mainRepo, "git", "tag", "v1.0.0");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertEquals("master", properties.get("branchName"));
+
+        exec(mainRepo, "git", "branch", "-m", "main");
+
+        properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertEquals("main", properties.get("branchName"));
+    }
+
+    @Test
+    void testBranchNameDetached(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init", "-b", "master");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file1.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file1.txt");
+        exec(mainRepo, "git", "commit", "-m", "file1");
+        Files.write(mainRepo.resolve("file2.txt"), "hello again".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file2.txt");
+        exec(mainRepo, "git", "commit", "-m", "file2");
+
+        exec(mainRepo, "git", "checkout", "HEAD^");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertFalse(properties.containsKey("branchName"));
+    }
+
+    @Test
+    void testBranchNameWorktree(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init", "-b", "master");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file.txt");
+        exec(mainRepo, "git", "commit", "-m", "initial commit");
+        exec(mainRepo, "git", "tag", "v1.0.0");
+
+        // Create a worktree with an additional commit
+        Path worktree = tempDir.resolve("worktree");
+        exec(mainRepo, "git", "worktree", "add", worktree.toString(), "-b", "master-wt");
+        Files.write(worktree.resolve("worktree-file.txt"), "worktree".getBytes(StandardCharsets.UTF_8));
+        exec(worktree, "git", "add", "worktree-file.txt");
+        exec(worktree, "git", "commit", "-m", "worktree commit");
+
+        String mainCommit = execOutput(mainRepo, "git", "rev-parse", "HEAD").trim();
+        String worktreeCommit = execOutput(worktree, "git", "rev-parse", "HEAD").trim();
+        assertNotEquals(mainCommit, worktreeCommit, "Worktree should have a different HEAD");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(worktree)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertEquals("master-wt", properties.get("branchName"));
+
+        exec(worktree, "git", "branch", "-m", "main-wt");
+
+        properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(worktree)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertEquals("main-wt", properties.get("branchName"));
+
+        // check main repo
+        properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertEquals("master", properties.get("branchName"));
+    }
+
+    @Test
+    void testBranchNameWorktreeDetached(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init", "-b", "master");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file1.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file1.txt");
+        exec(mainRepo, "git", "commit", "-m", "file1 commit");
+        Files.write(mainRepo.resolve("file2.txt"), "hello again".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file2.txt");
+        exec(mainRepo, "git", "commit", "-m", "file2 commit");
+
+        // Create a worktree with an additional commit
+        Path worktree = tempDir.resolve("worktree");
+        exec(mainRepo, "git", "worktree", "add", worktree.toString(), "-b", "master-wt");
+        Files.write(worktree.resolve("worktree-file1.txt"), "worktree".getBytes(StandardCharsets.UTF_8));
+        exec(worktree, "git", "add", "worktree-file1.txt");
+        exec(worktree, "git", "commit", "-m", "worktree-file1 commit");
+        Files.write(worktree.resolve("worktree-file2.txt"), "worktree".getBytes(StandardCharsets.UTF_8));
+        exec(worktree, "git", "add", "worktree-file2.txt");
+        exec(worktree, "git", "commit", "-m", "worktree-file2 commit");
+
+        String mainCommit = execOutput(mainRepo, "git", "rev-parse", "HEAD").trim();
+        String worktreeCommit = execOutput(worktree, "git", "rev-parse", "HEAD").trim();
+        assertNotEquals(mainCommit, worktreeCommit, "Worktree should have a different HEAD");
+
+        exec(worktree, "git", "checkout", "HEAD^");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(worktree)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertFalse(properties.containsKey("branchName"));
+    }
+
     private static void exec(Path workDir, String... command) throws Exception {
         Process process = new ProcessBuilder(command)
                 .directory(workDir.toFile())
