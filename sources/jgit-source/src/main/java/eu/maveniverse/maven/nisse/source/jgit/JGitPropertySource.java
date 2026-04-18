@@ -35,6 +35,7 @@ import org.eclipse.aether.version.VersionScheme;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
@@ -289,7 +290,7 @@ public class JGitPropertySource implements PropertySource {
             return Optional.empty();
         }
         return git.branchList().call().stream()
-                .filter(ref -> head.equals(ref.getObjectId()))
+                .filter(ref -> head.equals(ref.getObjectId()) && !Constants.HEAD.equals(ref.getName()))
                 .findFirst();
     }
 
