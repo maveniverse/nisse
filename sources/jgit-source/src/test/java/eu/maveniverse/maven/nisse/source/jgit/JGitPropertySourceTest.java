@@ -327,6 +327,38 @@ public class JGitPropertySourceTest {
         assertEquals(mainCommit, mainProperties.get("commit"), "Main repo should still work");
     }
 
+    @Test
+    void testBranchNameDef(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file.txt");
+        exec(mainRepo, "git", "commit", "-m", "initial commit");
+        exec(mainRepo, "git", "tag", "v1.0.0");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty when opened from a worktree");
+        assertEquals("master", properties.get("branchName"));
+
+        exec(mainRepo, "git", "branch", "-m", "main");
+
+        properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty when opened from a worktree");
+        assertEquals("main", properties.get("branchName"));
+    }
+
     private static void exec(Path workDir, String... command) throws Exception {
         Process process = new ProcessBuilder(command)
                 .directory(workDir.toFile())

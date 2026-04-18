@@ -66,6 +66,8 @@ public class JGitPropertySource implements PropertySource {
 
     private static final String JGIT_CLEAN = "clean";
 
+    private static final String JGIT_BRANCH_NAME = "branchName";
+
     /**
      * Specify the length for the short commit id.
      */
@@ -221,6 +223,12 @@ public class JGitPropertySource implements PropertySource {
                             JGIT_AUTHOR,
                             lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
                     result.put(JGIT_CLEAN, Boolean.toString(isClean(git)));
+
+                    Optional<Ref> localBranch = localBranch(git);
+                    localBranch
+                            .map(r -> r.getName().replace("refs/heads/", ""))
+                            .ifPresent(branchName -> result.put(JGIT_BRANCH_NAME, branchName));
+
                     if (Boolean.parseBoolean(configuration
                             .getConfiguration()
                             .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
@@ -274,6 +282,18 @@ public class JGitPropertySource implements PropertySource {
 
     private boolean isClean(Git git) throws GitAPIException {
         return git.status().call().isClean();
+    }
+
+    private Optional<Ref> localBranch(Git git) throws GitAPIException {
+        return git.branchList().call().stream()
+                .filter(ref -> {
+                    try {
+                        return ref.getObjectId().equals(git.getRepository().resolve("HEAD"));
+                    } catch (IOException e) {
+                        return false;
+                    }
+                })
+                .findFirst();
     }
 
     /**
