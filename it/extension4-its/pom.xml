@@ -77,6 +77,8 @@
               <preBuildHookScript>setup</preBuildHookScript>
               <postBuildHookScript>verify</postBuildHookScript>
               <addTestClassPath>false</addTestClassPath>
+              <settingsFile>src/it/settings.xml</settingsFile>
+              <mavenOpts>-Duser.home=${project.build.directory}/it-user-home</mavenOpts>
               <!-- TODO: This works ONLY with Maven 4.0.0-rc-3+ -->
               <invokerTest>!ci-friendly</invokerTest>
             </configuration>

@@ -72,6 +72,8 @@
               <preBuildHookScript>setup</preBuildHookScript>
               <postBuildHookScript>verify</postBuildHookScript>
               <addTestClassPath>false</addTestClassPath>
+              <settingsFile>src/it/settings.xml</settingsFile>
+              <mavenOpts>-Duser.home=${project.build.directory}/it-user-home</mavenOpts>
             </configuration>
             <executions>
               <execution>
