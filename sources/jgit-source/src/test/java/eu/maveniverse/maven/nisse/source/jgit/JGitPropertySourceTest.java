@@ -332,7 +332,7 @@ public class JGitPropertySourceTest {
         Path mainRepo = tempDir.resolve("main-repo");
         Files.createDirectories(mainRepo);
 
-        exec(mainRepo, "git", "init");
+        exec(mainRepo, "git", "init", "-b", "master");
         exec(mainRepo, "git", "config", "user.email", "test@test.com");
         exec(mainRepo, "git", "config", "user.name", "Test");
         Files.write(mainRepo.resolve("file.txt"), "hello".getBytes(StandardCharsets.UTF_8));
@@ -345,7 +345,7 @@ public class JGitPropertySourceTest {
                         .withCurrentWorkingDirectory(mainRepo)
                         .build());
 
-        assertFalse(properties.isEmpty(), "Properties should not be empty when opened from a worktree");
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
         assertEquals("master", properties.get("branchName"));
 
         exec(mainRepo, "git", "branch", "-m", "main");
@@ -355,7 +355,7 @@ public class JGitPropertySourceTest {
                         .withCurrentWorkingDirectory(mainRepo)
                         .build());
 
-        assertFalse(properties.isEmpty(), "Properties should not be empty when opened from a worktree");
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
         assertEquals("main", properties.get("branchName"));
     }
 

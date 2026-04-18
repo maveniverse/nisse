@@ -224,7 +224,7 @@ public class JGitPropertySource implements PropertySource {
                             lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
                     result.put(JGIT_CLEAN, Boolean.toString(isClean(git)));
 
-                    Optional<Ref> localBranch = localBranch(git);
+                    Optional<Ref> localBranch = localBranch(git, head);
                     localBranch
                             .map(r -> r.getName().replace("refs/heads/", ""))
                             .ifPresent(branchName -> result.put(JGIT_BRANCH_NAME, branchName));
@@ -284,15 +284,12 @@ public class JGitPropertySource implements PropertySource {
         return git.status().call().isClean();
     }
 
-    private Optional<Ref> localBranch(Git git) throws GitAPIException {
+    private Optional<Ref> localBranch(Git git, ObjectId head) throws GitAPIException {
+        if (head == null) {
+            return Optional.empty();
+        }
         return git.branchList().call().stream()
-                .filter(ref -> {
-                    try {
-                        return ref.getObjectId().equals(git.getRepository().resolve("HEAD"));
-                    } catch (IOException e) {
-                        return false;
-                    }
-                })
+                .filter(ref -> head.equals(ref.getObjectId()))
                 .findFirst();
     }
 
