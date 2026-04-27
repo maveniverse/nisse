@@ -477,6 +477,55 @@ public class JGitPropertySourceTest {
         assertFalse(properties.containsKey("branchName"));
     }
 
+    @Test
+    void testVersionHintReachability(@TempDir Path tempDir) throws Exception {
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // Initial commit and release tag
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "initial");
+        exec(repo, "git", "tag", "1.0.0");
+
+        // Create maintenance branch from this point
+        exec(repo, "git", "branch", "maintenance");
+
+        // Add commit on master with version hint tag (unreachable from maintenance)
+        Files.write(repo.resolve("file.txt"), "v2".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "master work");
+        exec(repo, "git", "tag", "2.0.0-SNAPSHOT");
+
+        // Switch to maintenance, add a commit with release tag
+        exec(repo, "git", "checkout", "maintenance");
+        Files.write(repo.resolve("maint.txt"), "fix".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "maint.txt");
+        exec(repo, "git", "commit", "-m", "maintenance fix");
+        exec(repo, "git", "tag", "1.0.1");
+
+        // Resolve dynamic version from maintenance branch
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+
+        JGitPropertySource source = new JGitPropertySource();
+        Map<String, String> properties = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+
+        String dynamicVersion = properties.get("dynamicVersion");
+        assertNotNull(dynamicVersion, "dynamicVersion should be set");
+        assertEquals(
+                "1.0.1",
+                dynamicVersion,
+                "Should resolve version from maintenance branch tag, not unreachable master hint tag");
+    }
+
     private static void exec(Path workDir, String... command) throws Exception {
         Process process = new ProcessBuilder(command)
                 .directory(workDir.toFile())
