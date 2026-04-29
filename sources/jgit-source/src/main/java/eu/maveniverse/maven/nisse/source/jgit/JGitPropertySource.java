@@ -640,6 +640,7 @@ public class JGitPropertySource implements PropertySource {
 
         Repository repository = git.getRepository();
         return git.tagList().call().stream()
+                .filter(tag -> hintTagPattern.matcher(tag.getName()).matches())
                 .filter(tag -> isReachableFrom(repository, tag, head))
                 .map(Ref::getName)
                 .map(hintTagPattern::matcher)

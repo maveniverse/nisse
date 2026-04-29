@@ -499,7 +499,7 @@ public class JGitPropertySourceTest {
         Files.write(repo.resolve("file.txt"), "v2".getBytes(StandardCharsets.UTF_8));
         exec(repo, "git", "add", "file.txt");
         exec(repo, "git", "commit", "-m", "master work");
-        exec(repo, "git", "tag", "2.0.0-SNAPSHOT");
+        exec(repo, "git", "tag", "-a", "2.0.0-SNAPSHOT", "-m", "version hint");
 
         // Switch to maintenance, add a commit with release tag
         exec(repo, "git", "checkout", "maintenance");
