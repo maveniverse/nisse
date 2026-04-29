@@ -40,6 +40,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -389,7 +390,7 @@ public class JGitPropertySource implements PropertySource {
             boolean isCustomPattern = !DEFAULT_VERSION_HINT_PATTERN.equals(versionHintPattern);
 
             // Then, check for version hint tags
-            Optional<String> versionHint = findVersionHint(configuration, git);
+            Optional<String> versionHint = findVersionHint(configuration, git, head);
             if (versionHint.isPresent()) {
                 VersionInformation hintVersion = new VersionInformation(versionHint.get());
                 logger.debug("Version hint found: {}", hintVersion);
@@ -597,13 +598,14 @@ public class JGitPropertySource implements PropertySource {
      * @return Optional version string extracted from hint tags
      * @throws Exception if git operations fail
      */
-    protected Optional<String> findVersionHint(NisseConfiguration configuration, Git git) throws Exception {
+    protected Optional<String> findVersionHint(NisseConfiguration configuration, Git git, ObjectId head)
+            throws Exception {
         try {
             String hintPattern = configuration
                     .getConfiguration()
                     .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN, DEFAULT_VERSION_HINT_PATTERN);
 
-            List<String> hintVersions = findVersionHintTags(git, hintPattern);
+            List<String> hintVersions = findVersionHintTags(git, hintPattern, head);
             logger.debug("Found version hint tags: {}", hintVersions);
 
             return findHighestVersionFromHints(hintVersions);
@@ -620,7 +622,7 @@ public class JGitPropertySource implements PropertySource {
      * @return List of version strings extracted from matching tags
      * @throws GitAPIException if git operations fail
      */
-    protected List<String> findVersionHintTags(Git git, String hintPattern) throws GitAPIException {
+    protected List<String> findVersionHintTags(Git git, String hintPattern, ObjectId head) throws GitAPIException {
         // Convert hint pattern to regex pattern
         // ${version} becomes a capturing group for semantic version
         // We need to be careful about the order of replacements to avoid double-escaping
@@ -636,12 +638,34 @@ public class JGitPropertySource implements PropertySource {
         Pattern hintTagPattern = Pattern.compile("refs/tags/v?" + regexPattern);
         logger.debug("Using version hint regex pattern: {}", hintTagPattern.pattern());
 
+        Repository repository = git.getRepository();
         return git.tagList().call().stream()
+                .filter(tag -> hintTagPattern.matcher(tag.getName()).matches())
+                .filter(tag -> isReachableFrom(repository, tag, head))
                 .map(Ref::getName)
                 .map(hintTagPattern::matcher)
                 .filter(m -> m.matches() && m.groupCount() > 0)
                 .map(m -> m.group(1)) // Extract the version part
                 .collect(Collectors.toList());
+    }
+
+    private boolean isReachableFrom(Repository repository, Ref tag, ObjectId head) {
+        if (head == null) {
+            return true;
+        }
+        try {
+            Ref peeledRef = repository.getRefDatabase().peel(tag);
+            ObjectId tagObjectId =
+                    (peeledRef.getPeeledObjectId() != null ? peeledRef.getPeeledObjectId() : tag.getObjectId());
+            try (RevWalk revWalk = new RevWalk(repository)) {
+                RevCommit tagCommit = revWalk.parseCommit(tagObjectId);
+                RevCommit headCommit = revWalk.parseCommit(head);
+                return revWalk.isMergedInto(tagCommit, headCommit);
+            }
+        } catch (IOException e) {
+            logger.debug("Could not check reachability for tag {}: {}", tag.getName(), e.getMessage());
+            return false;
+        }
     }
 
     /**
