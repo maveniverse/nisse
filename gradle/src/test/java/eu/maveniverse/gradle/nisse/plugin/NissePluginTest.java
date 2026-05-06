@@ -7,12 +7,45 @@
  */
 package eu.maveniverse.gradle.nisse.plugin;
 
+import org.gradle.testkit.runner.BuildResult;
+import org.gradle.testkit.runner.GradleRunner;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class NissePluginTest {
 
-    @Test
-    void smoke() {
+    @TempDir
+    private Path projectDir;
 
+    @Test
+    void smoke() throws IOException {
+        writeFile("settings.gradle", "rootProject.name = \"test\"");
+        writeFile(
+                        "build.gradle.kts",
+                        """
+                        plugins {
+                            id("eu.maveniverse.gradle.plugins.nisse-gradle-plugin")
+                        }
+                        """
+                );
+        BuildResult result = runner().withArguments("nisseDump").run();
+        assertTrue(result.getOutput().contains("nisse.os.name="), result.getOutput());
+    }
+
+    private GradleRunner runner() {
+        return GradleRunner.create()
+                .withProjectDir(projectDir.toFile())
+                .withPluginClasspath()
+                .withDebug(true);
+    }
+
+    private void writeFile(String filename, String content) throws IOException {
+        Files.writeString(projectDir.resolve(filename), content);
     }
 }

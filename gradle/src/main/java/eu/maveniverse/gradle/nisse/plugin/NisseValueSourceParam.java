@@ -10,7 +10,7 @@ package eu.maveniverse.gradle.nisse.plugin;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.ValueSourceParameters;
 
-import java.nio.file.Path;
+import java.io.File;
 
 /**
  * Params for Nisse value source.
@@ -21,12 +21,12 @@ public interface NisseValueSourceParam extends ValueSourceParameters {
      *
      * @return the path of current working directory.
      */
-    Property<Path> cwd();
+    Property<File> getCwd();
 
     /**
      * Property for build root directory.
      *
      * @return the path of root directory.
      */
-    Property<Path> root();
+    Property<File> getRoot();
 }

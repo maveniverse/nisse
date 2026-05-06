@@ -26,8 +26,8 @@ public abstract class NisseValueSource implements ValueSource<Map<String, String
     public @Nullable Map<String, String> obtain() {
         NisseConfiguration configuration = SimpleNisseConfiguration.builder()
                 .withSystemProperties(System.getProperties())
-                .withCurrentWorkingDirectory(getParameters().cwd().get())
-                .withSessionRootDirectory(getParameters().root().get())
+                .withCurrentWorkingDirectory(getParameters().getCwd().get().toPath())
+                .withSessionRootDirectory(getParameters().getRoot().get().toPath())
                 .build();
         return new SimpleNisseManager(
                 Arrays.asList(new JGitPropertySource(),

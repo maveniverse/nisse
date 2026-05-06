@@ -9,6 +9,9 @@ package eu.maveniverse.gradle.nisse.plugin;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.provider.Provider;
+
+import java.util.Map;
 
 /**
  * Nisse plugin that crates value source with Nisse properties.
@@ -17,9 +20,18 @@ public class NissePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project target) {
-        target.getProviders().of(NisseValueSource.class, p -> {
-            p.getParameters().cwd().set(target.getProjectDir().toPath());
-            p.getParameters().root().set(target.getRootDir().toPath());
+        Provider<Map<String, String>> provider = target.getProviders().of(NisseValueSource.class, p -> {
+            p.getParameters().getCwd().set(target.getProjectDir());
+            p.getParameters().getRoot().set(target.getRootDir());
+        });
+
+        target.beforeEvaluate(
+                p -> provider.get().forEach(p::setProperty)
+        );
+
+        target.getTasks().register("nisseDump", p -> {
+            System.out.println("Nisse dump task started");
+            provider.get().forEach((key, value) -> System.out.println(key + "=" + value));
         });
     }
 }

@@ -19,7 +19,7 @@ gradlePlugin {
     vcsUrl = "https://github.com/maveniverse/nisse"
     plugins {
         create("nisse") {
-            id = "eu.maveniverse.gradle.plugins.nisse"
+            id = "eu.maveniverse.gradle.plugins.nisse-gradle-plugin"
             displayName = "Maveniverse Nisse"
             description = "Sets project properties from discovered sources."
             tags = ["semver", "semantic-versioning", "jgit", "jgit", "versioning", "automation"]
