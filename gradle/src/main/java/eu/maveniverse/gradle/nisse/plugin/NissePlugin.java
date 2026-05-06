@@ -25,12 +25,10 @@ public class NissePlugin implements Plugin<Project> {
             p.getParameters().getRoot().set(target.getRootDir());
         });
 
-        target.beforeEvaluate(
-                p -> provider.get().forEach(p::setProperty)
-        );
+        target.getExtensions().add("nisse", provider.get());
 
         target.getTasks().register("nisseDump", p -> {
-            System.out.println("Nisse dump task started");
+            System.out.println("Nisse dump:");
             provider.get().forEach((key, value) -> System.out.println(key + "=" + value));
         });
     }
