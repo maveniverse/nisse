@@ -18,15 +18,12 @@
   </parent>
 
   <artifactId>gradle</artifactId>
-  <packaging>pom</packaging>
+  <packaging>toolrunner</packaging>
 
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
-    <enforcer.skip>true</enforcer.skip>
-    <maven.install.skip>true</maven.install.skip>
-    <maven.deploy.skip>true</maven.deploy.skip>
-    <version.toolrunner>0.1.1</version.toolrunner>
+    <version.toolrunner>0.1.2</version.toolrunner>
   </properties>
 
   <build>
@@ -35,30 +32,28 @@
         <groupId>eu.maveniverse.maven.plugins</groupId>
         <artifactId>toolrunner</artifactId>
         <version>${version.toolrunner}</version>
+        <extensions>true</extensions>
+        <configuration>
+          <toolName>gradle</toolName>
+          <toolVersion>9.5.0</toolVersion>
+          <isTransient>true</isTransient>
+          <arguments>
+            <argument>--no-daemon</argument>
+            <argument>build</argument>
+          </arguments>
+        </configuration>
         <dependencies>
+          <dependency>
+            <groupId>eu.maveniverse.maven.toolrunner</groupId>
+            <artifactId>extension</artifactId>
+            <version>${version.toolrunner}</version>
+          </dependency>
           <dependency>
             <groupId>eu.maveniverse.maven.toolrunner.tools</groupId>
             <artifactId>gradle</artifactId>
             <version>${version.toolrunner}</version>
           </dependency>
         </dependencies>
-        <executions>
-          <execution>
-            <id>gradle-build</id>
-            <goals>
-              <goal>run</goal>
-            </goals>
-            <phase>package</phase>
-            <configuration>
-              <toolName>gradle</toolName>
-              <toolVersion>9.5.0</toolVersion>
-              <isTransient>true</isTransient>
-              <arguments>
-                <argument>build</argument>
-              </arguments>
-            </configuration>
-          </execution>
-        </executions>
       </plugin>
     </plugins>
   </build>
