@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright (c) 2023-2024 Maveniverse Org.
+    All rights reserved. This program and the accompanying materials
+    are made available under the terms of the Eclipse Public License v2.0
+    which accompanies this distribution, and is available at
+    https://www.eclipse.org/legal/epl-v20.html
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>eu.maveniverse.maven.nisse</groupId>
+    <artifactId>nisse</artifactId>
+    <version>0.8.5-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>gradle</artifactId>
+  <packaging>pom</packaging>
+
+  <name>${project.groupId}:${project.artifactId}</name>
+
+  <properties>
+    <enforcer.skip>true</enforcer.skip>
+    <maven.install.skip>true</maven.install.skip>
+    <maven.deploy.skip>true</maven.deploy.skip>
+    <version.toolrunner>0.1.0</version.toolrunner>
+  </properties>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>eu.maveniverse.maven.plugins</groupId>
+        <artifactId>toolrunner</artifactId>
+        <version>${version.toolrunner}</version>
+        <dependencies>
+          <dependency>
+            <groupId>eu.maveniverse.maven.toolrunner.tools</groupId>
+            <artifactId>gradle</artifactId>
+            <version>${version.toolrunner}</version>
+          </dependency>
+        </dependencies>
+        <executions>
+          <execution>
+            <id>gradle-build</id>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <phase>package</phase>
+            <configuration>
+              <toolName>gradle</toolName>
+              <toolVersion>9.5.0</toolVersion>
+              <isTransient>true</isTransient>
+              <arguments>
+                <argument>build</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

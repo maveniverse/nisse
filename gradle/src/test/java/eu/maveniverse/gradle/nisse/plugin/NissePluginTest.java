@@ -7,17 +7,16 @@
  */
 package eu.maveniverse.gradle.nisse.plugin;
 
-import org.gradle.testkit.runner.BuildResult;
-import org.gradle.testkit.runner.GradleRunner;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
-
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.gradle.testkit.runner.BuildResult;
+import org.gradle.testkit.runner.GradleRunner;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class NissePluginTest {
 
@@ -27,14 +26,11 @@ public class NissePluginTest {
     @Test
     void nisseDump() throws IOException {
         writeFile("settings.gradle", "rootProject.name = \"test\"");
-        writeFile(
-                        "build.gradle",
-                        """
+        writeFile("build.gradle", """
                         plugins {
                             id("eu.maveniverse.gradle.plugins.nisse-gradle-plugin")
                         }
-                        """
-                );
+                        """);
         BuildResult result = runner().withArguments("nisseDump").run();
         assertTrue(result.getOutput().contains("nisse.os.name="), result.getOutput());
     }
@@ -42,17 +38,18 @@ public class NissePluginTest {
     @Test
     void nisseProjectProperties() throws IOException {
         writeFile("settings.gradle", "rootProject.name = \"test\"");
-        writeFile(
-                "build.gradle",
-                """
+        writeFile("build.gradle", """
                 plugins {
                     id("eu.maveniverse.gradle.plugins.nisse-gradle-plugin")
                 }
                 print 'Nisse was here: ' + project.properties.nisse['nisse.os.name']
-                """
-        );
+                """);
         BuildResult result = runner().run();
-        assertTrue(result.getOutput().contains("Nisse was here: " + System.getProperty("os.name").toLowerCase(Locale.ENGLISH)), result.getOutput());
+        assertTrue(
+                result.getOutput()
+                        .contains("Nisse was here: "
+                                + System.getProperty("os.name").toLowerCase(Locale.ENGLISH)),
+                result.getOutput());
     }
 
     private GradleRunner runner() {

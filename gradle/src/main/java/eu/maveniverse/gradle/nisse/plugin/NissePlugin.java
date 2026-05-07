@@ -7,11 +7,10 @@
  */
 package eu.maveniverse.gradle.nisse.plugin;
 
+import java.util.Map;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
-
-import java.util.Map;
 
 /**
  * Nisse plugin that crates value source with Nisse properties.

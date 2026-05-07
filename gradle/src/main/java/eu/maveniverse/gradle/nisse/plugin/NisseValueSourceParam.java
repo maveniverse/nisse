@@ -7,10 +7,9 @@
  */
 package eu.maveniverse.gradle.nisse.plugin;
 
+import java.io.File;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.ValueSourceParameters;
-
-import java.io.File;
 
 /**
  * Params for Nisse value source.

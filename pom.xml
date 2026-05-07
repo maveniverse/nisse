@@ -42,6 +42,7 @@
     <module>extension</module>
     <module>plugin3</module>
     <module>it</module>
+    <module>gradle</module>
   </modules>
 
   <scm>

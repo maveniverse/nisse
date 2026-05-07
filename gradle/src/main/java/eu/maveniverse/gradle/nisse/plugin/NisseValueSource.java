@@ -12,11 +12,10 @@ import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseManager;
 import eu.maveniverse.maven.nisse.source.jgit.JGitPropertySource;
 import eu.maveniverse.maven.nisse.source.osdetector.OsDetectorPropertySource;
-import org.gradle.api.provider.ValueSource;
-import org.jspecify.annotations.Nullable;
-
 import java.util.Arrays;
 import java.util.Map;
+import org.gradle.api.provider.ValueSource;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Values source for Nisse properties.
@@ -29,8 +28,7 @@ public abstract class NisseValueSource implements ValueSource<Map<String, String
                 .withCurrentWorkingDirectory(getParameters().getCwd().get().toPath())
                 .withSessionRootDirectory(getParameters().getRoot().get().toPath())
                 .build();
-        return new SimpleNisseManager(
-                Arrays.asList(new JGitPropertySource(),
-                        new OsDetectorPropertySource())).createProperties(configuration);
+        return new SimpleNisseManager(Arrays.asList(new JGitPropertySource(), new OsDetectorPropertySource()))
+                .createProperties(configuration);
     }
 }
