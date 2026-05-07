@@ -26,7 +26,7 @@
     <enforcer.skip>true</enforcer.skip>
     <maven.install.skip>true</maven.install.skip>
     <maven.deploy.skip>true</maven.deploy.skip>
-    <version.toolrunner>0.1.0</version.toolrunner>
+    <version.toolrunner>0.1.1</version.toolrunner>
   </properties>
 
   <build>
