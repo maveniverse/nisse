@@ -128,20 +128,12 @@ public class VersionInformation {
         this.major = major;
     }
 
-    public int incMajor() {
-        return this.major++;
-    }
-
     public int getMinor() {
         return minor;
     }
 
     public void setMinor(int minor) {
         this.minor = minor;
-    }
-
-    public int incMinor() {
-        return this.minor++;
     }
 
     public int getPatch() {
@@ -152,20 +144,12 @@ public class VersionInformation {
         this.patch = patch;
     }
 
-    public int incPatch() {
-        return this.patch++;
-    }
-
     public long getBuildNumber() {
         return buildNumber;
     }
 
     public void setBuildNumber(long buildNumber) {
         this.buildNumber = buildNumber;
-    }
-
-    public long incBuildNumber() {
-        return this.buildNumber++;
     }
 
     public String getQualifier() {

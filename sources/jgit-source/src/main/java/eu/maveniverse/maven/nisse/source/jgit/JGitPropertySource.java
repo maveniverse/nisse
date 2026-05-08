@@ -460,7 +460,7 @@ public class JGitPropertySource implements PropertySource {
         try {
             RevCommit lastCommit = getLastCommit(git, head);
             logger.debug("last commit: {}", lastCommit.toString());
-            if (apply(vi, lastCommit.getShortMessage())) {
+            if (mayApply(vi, lastCommit.getShortMessage())) {
                 logger.debug("last commit: {} -> {}", lastCommit.getShortMessage(), vi);
             }
             logger.debug("counting version resolved to: {}", vi);
@@ -470,20 +470,25 @@ public class JGitPropertySource implements PropertySource {
         }
     }
 
-    protected boolean apply(VersionInformation vi, String message) {
+    /**
+     * May apply directive in commit message. If applied, returns {@code true} and updates the passed in
+     * {@link VersionInformation} instance.
+     */
+    protected boolean mayApply(VersionInformation vi, String message) {
+        // TODO: config directives
         if (message.contains("[major]")) {
-            vi.incMajor();
+            vi.setMajor(vi.getMajor() + 1);
             vi.setMinor(0);
             vi.setPatch(0);
             vi.setBuildNumber(0);
             return true;
         } else if (message.contains("[minor]")) {
-            vi.incMinor();
+            vi.setMinor(vi.getMinor() + 1);
             vi.setPatch(0);
             vi.setBuildNumber(0);
             return true;
         } else if (message.contains("[patch]")) {
-            vi.incPatch();
+            vi.setPatch(vi.getPatch() + 1);
             vi.setBuildNumber(0);
             return true;
         }
