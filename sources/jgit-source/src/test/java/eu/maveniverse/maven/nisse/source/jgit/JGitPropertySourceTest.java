@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -527,7 +526,6 @@ public class JGitPropertySourceTest {
                 "Should resolve version from maintenance branch tag, not unreachable master hint tag");
     }
 
-
     @Test
     void testCountingVersion(@TempDir Path tempDir) throws Exception {
         // Resolve counting version
@@ -567,10 +565,7 @@ public class JGitPropertySourceTest {
 
         countingVersion = properties.get("countingVersion");
         assertNotNull(countingVersion, "countingVersion should be set");
-        assertEquals(
-                "0.1.1",
-                countingVersion,
-                "Should resolve version");
+        assertEquals("0.1.1", countingVersion, "Should resolve version");
 
         // v4 release: [minor] - 0.1.1 -> 0.2.0
         Files.write(repo.resolve("file.txt"), "v4".getBytes(StandardCharsets.UTF_8));
@@ -584,10 +579,7 @@ public class JGitPropertySourceTest {
 
         countingVersion = properties.get("countingVersion");
         assertNotNull(countingVersion, "countingVersion should be set");
-        assertEquals(
-                "0.2.0",
-                countingVersion,
-                "Should resolve version");
+        assertEquals("0.2.0", countingVersion, "Should resolve version");
     }
 
     private static void exec(Path workDir, String... command) throws Exception {
