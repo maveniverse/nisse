@@ -459,9 +459,9 @@ public class JGitPropertySource implements PropertySource {
 
         try {
             RevCommit lastCommit = getLastCommit(git, head);
-            logger.debug("last commit: {}", lastCommit.toString());
+            logger.debug("last commit: {}", lastCommit);
             if (mayApply(vi, lastCommit.getShortMessage())) {
-                logger.debug("last commit: {} -> {}", lastCommit.getShortMessage(), vi);
+                logger.debug("last commit is a directive: {} -> {}", lastCommit.getShortMessage(), vi);
             }
             logger.debug("counting version resolved to: {}", vi);
             return mayAddQualifier(configuration, git, vi).toString();

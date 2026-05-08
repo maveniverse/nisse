@@ -568,9 +568,7 @@ public class JGitPropertySourceTest {
         assertEquals("0.1.1", countingVersion, "Should resolve version");
 
         // v4 release: [minor] - 0.1.1 -> 0.2.0
-        Files.write(repo.resolve("file.txt"), "v4".getBytes(StandardCharsets.UTF_8));
-        exec(repo, "git", "add", "file.txt");
-        exec(repo, "git", "commit", "-m", "[minor] release");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "[minor] release");
 
         properties = source.getProperties(SimpleNisseConfiguration.builder()
                 .withCurrentWorkingDirectory(repo)
