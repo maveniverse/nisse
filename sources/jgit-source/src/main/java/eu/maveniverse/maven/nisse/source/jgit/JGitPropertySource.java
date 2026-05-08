@@ -66,6 +66,8 @@ public class JGitPropertySource implements PropertySource {
 
     private static final String JGIT_DYNAMIC_VERSION = "dynamicVersion";
 
+    private static final String JGIT_COUNTING_VERSION = "countingVersion";
+
     private static final String JGIT_CLEAN = "clean";
 
     private static final String JGIT_BRANCH_NAME = "branchName";
@@ -81,11 +83,18 @@ public class JGitPropertySource implements PropertySource {
     /**
      * Set to {@code true} to enable "dynamic version" feature, it adds the
      * {@link #JGIT_DYNAMIC_VERSION} property to resulting properties.
-     *
      */
     private static final String JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION = "nisse.source.jgit.dynamicVersion";
 
     private static final String DEFAULT_DYNAMIC_VERSION = Boolean.FALSE.toString();
+
+    /**
+     * Set to {@code true} to enable "counting version" feature, it adds the
+     * {@link #JGIT_COUNTING_VERSION} property to resulting properties.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_COUNTING_VERSION = "nisse.source.jgit.countingVersion";
+
+    private static final String DEFAULT_COUNTING_VERSION = Boolean.FALSE.toString();
 
     /**
      * Whether the patch version shall be increased or not, when calculating dynamic version and there is no tag
@@ -235,6 +244,11 @@ public class JGitPropertySource implements PropertySource {
                             .getConfiguration()
                             .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
                         result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, git, head));
+                    }
+                    if (Boolean.parseBoolean(configuration
+                            .getConfiguration()
+                            .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_COUNTING_VERSION, DEFAULT_COUNTING_VERSION))) {
+                        result.put(JGIT_COUNTING_VERSION, resolveCountingVersion(configuration, git, head));
                     }
                 }
             }
@@ -440,6 +454,42 @@ public class JGitPropertySource implements PropertySource {
         return vi.toString();
     }
 
+    String resolveCountingVersion(NisseConfiguration configuration, Git git, ObjectId head) throws Exception {
+        VersionInformation vi = getVersionFromGit(configuration, git, head);
+
+        try {
+            RevCommit lastCommit = getLastCommit(git, head);
+            logger.debug("last commit: {}", lastCommit.toString());
+            if (apply(vi, lastCommit.getShortMessage())) {
+                logger.debug("last commit: {} -> {}", lastCommit.getShortMessage(), vi);
+            }
+            logger.debug("counting version resolved to: {}", vi);
+            return mayAddQualifier(configuration, git, vi).toString();
+        } catch (GitAPIException e) {
+            throw new Exception("Error reading Git information.", e);
+        }
+    }
+
+    protected boolean apply(VersionInformation vi, String message) {
+        if (message.contains("[major]")) {
+            vi.incMajor();
+            vi.setMinor(0);
+            vi.setPatch(0);
+            vi.setBuildNumber(0);
+            return true;
+        } else if (message.contains("[minor]")) {
+            vi.incMinor();
+            vi.setPatch(0);
+            vi.setBuildNumber(0);
+            return true;
+        } else if (message.contains("[patch]")) {
+            vi.incPatch();
+            vi.setBuildNumber(0);
+            return true;
+        }
+        return false;
+    }
+
     protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git) throws Exception {
         return getVersionFromGit(configuration, git, git.getRepository().resolve("HEAD"));
     }
@@ -490,7 +540,7 @@ public class JGitPropertySource implements PropertySource {
 
     private Optional<VersionInformation> getHighestVersionTagForCommit(
             NisseConfiguration configuration, Git git, RevCommit commit) throws GitAPIException {
-        // get tags use semantic version (X.Y.Z or vX.Y.Z) for for commit
+        // get tags use semantic version (X.Y.Z or vX.Y.Z) for commit
         List<String> versionTagsForCommit = getVersionedTagsForCommit(configuration, git, commit);
         logger.debug("commit {} {}: {}", commit.getId(), commit.getShortMessage(), versionTagsForCommit.toString());
         return findHighestVersion(versionTagsForCommit);

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -524,6 +525,69 @@ public class JGitPropertySourceTest {
                 "1.0.1",
                 dynamicVersion,
                 "Should resolve version from maintenance branch tag, not unreachable master hint tag");
+    }
+
+
+    @Test
+    void testCountingVersion(@TempDir Path tempDir) throws Exception {
+        // Resolve counting version
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.countingVersion", "true");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+        Map<String, String> properties;
+        String countingVersion;
+
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // v1
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "initial");
+
+        // v2
+        Files.write(repo.resolve("file.txt"), "v2".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "fix");
+
+        // v3 release: [patch] - 0.1.0 -> 0.1.1
+        Files.write(repo.resolve("file.txt"), "v3".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "[patch] release");
+
+        properties = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+
+        countingVersion = properties.get("countingVersion");
+        assertNotNull(countingVersion, "countingVersion should be set");
+        assertEquals(
+                "0.1.1",
+                countingVersion,
+                "Should resolve version");
+
+        // v4 release: [minor] - 0.1.1 -> 0.2.0
+        Files.write(repo.resolve("file.txt"), "v4".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "[minor] release");
+
+        properties = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+
+        countingVersion = properties.get("countingVersion");
+        assertNotNull(countingVersion, "countingVersion should be set");
+        assertEquals(
+                "0.2.0",
+                countingVersion,
+                "Should resolve version");
     }
 
     private static void exec(Path workDir, String... command) throws Exception {

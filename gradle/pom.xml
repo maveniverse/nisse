@@ -23,7 +23,7 @@
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
-    <version.toolrunner>0.2.1</version.toolrunner>
+    <version.toolrunner>0.2.2</version.toolrunner>
   </properties>
 
   <build>
