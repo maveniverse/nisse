@@ -532,6 +532,7 @@ public class JGitPropertySourceTest {
         Map<String, String> userProps = new HashMap<>();
         userProps.put("nisse.source.jgit.countingVersion", "true");
         userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        userProps.put("nisse.source.jgit.increasePatchVersion", "false");
         JGitPropertySource source = new JGitPropertySource();
         Map<String, String> properties;
         String countingVersion;
@@ -543,41 +544,100 @@ public class JGitPropertySourceTest {
         exec(repo, "git", "config", "user.email", "test@test.com");
         exec(repo, "git", "config", "user.name", "Test");
 
+        // HEAD must exist
+
         // v1
         Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
         exec(repo, "git", "add", "file.txt");
         exec(repo, "git", "commit", "-m", "initial");
+
+        // starting semver is 0.1.0 and +1 commit
+        assertProperty(
+                "countingVersion",
+                "0.1.0-1",
+                source.getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(repo)
+                        .withUserProperties(userProps)
+                        .build()));
 
         // v2
         Files.write(repo.resolve("file.txt"), "v2".getBytes(StandardCharsets.UTF_8));
         exec(repo, "git", "add", "file.txt");
         exec(repo, "git", "commit", "-m", "fix");
 
+        // starting semver is 0.1.0 and +2 commit
+        assertProperty(
+                "countingVersion",
+                "0.1.0-2",
+                source.getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(repo)
+                        .withUserProperties(userProps)
+                        .build()));
+
         // v3 release: [patch] - 0.1.0 -> 0.1.1
         Files.write(repo.resolve("file.txt"), "v3".getBytes(StandardCharsets.UTF_8));
         exec(repo, "git", "add", "file.txt");
         exec(repo, "git", "commit", "-m", "[patch] release");
 
-        properties = source.getProperties(SimpleNisseConfiguration.builder()
-                .withCurrentWorkingDirectory(repo)
-                .withUserProperties(userProps)
-                .build());
+        // release 0.1.1
+        assertProperty(
+                "countingVersion",
+                "0.1.1",
+                source.getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(repo)
+                        .withUserProperties(userProps)
+                        .build()));
 
-        countingVersion = properties.get("countingVersion");
-        assertNotNull(countingVersion, "countingVersion should be set");
-        assertEquals("0.1.1", countingVersion, "Should resolve version");
+        // tag release
+        exec(repo, "git", "tag", "0.1.1");
 
-        // v4 release: [minor] - 0.1.1 -> 0.2.0
+        // v4
+        Files.write(repo.resolve("file.txt"), "v4".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "fix");
+
+        // 0.1.1 and +1 commit
+        assertProperty(
+                "countingVersion",
+                "0.1.1-1",
+                source.getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(repo)
+                        .withUserProperties(userProps)
+                        .build()));
+
+        // v5 release: [minor] - 0.1.1 -> 0.2.0
         exec(repo, "git", "commit", "--allow-empty", "-m", "[minor] release");
 
-        properties = source.getProperties(SimpleNisseConfiguration.builder()
-                .withCurrentWorkingDirectory(repo)
-                .withUserProperties(userProps)
-                .build());
+        assertProperty(
+                "countingVersion",
+                "0.2.0",
+                source.getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(repo)
+                        .withUserProperties(userProps)
+                        .build()));
 
-        countingVersion = properties.get("countingVersion");
-        assertNotNull(countingVersion, "countingVersion should be set");
-        assertEquals("0.2.0", countingVersion, "Should resolve version");
+        // tag release
+        exec(repo, "git", "tag", "0.2.0");
+
+        // v6
+        Files.write(repo.resolve("file.txt"), "v6".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "fix");
+
+        // 0.2.0 and +1 commit
+        assertProperty(
+                "countingVersion",
+                "0.2.0-1",
+                source.getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(repo)
+                        .withUserProperties(userProps)
+                        .build()));
+    }
+
+    private static void assertProperty(String key, String expectedValue, Map<String, String> properties) {
+        String value = properties.get("countingVersion");
+        assertNotNull(value, key + " should be set");
+        assertEquals(expectedValue, value, "Unexpected value for countingVersion: " + key);
     }
 
     private static void exec(Path workDir, String... command) throws Exception {
