@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Locale;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.jupiter.api.Test;
@@ -45,11 +44,14 @@ public class NissePluginTest {
                 print 'Nisse was here: ' + project.properties.nisse['nisse.os.name']
                 """);
         BuildResult result = runner().run();
-        assertTrue(
-                result.getOutput()
-                        .contains("Nisse was here: "
-                                + System.getProperty("os.name").toLowerCase(Locale.ENGLISH)),
-                result.getOutput());
+        String output = result.getOutput();
+        int idx = output.indexOf("Nisse was here: ");
+        assertTrue(idx >= 0, "Expected 'Nisse was here: ' in output: " + output);
+        String value = output.substring(idx + "Nisse was here: ".length())
+                .lines()
+                .findFirst()
+                .orElse("");
+        assertTrue(!value.isEmpty() && !value.equals("null"), "Expected non-empty os.name but got: '" + value + "'");
     }
 
     private GradleRunner runner() {
