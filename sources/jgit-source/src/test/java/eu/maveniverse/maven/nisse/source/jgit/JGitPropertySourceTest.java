@@ -528,14 +528,9 @@ public class JGitPropertySourceTest {
 
     @Test
     void testCountingVersion(@TempDir Path tempDir) throws Exception {
-        // Resolve counting version
         Map<String, String> userProps = new HashMap<>();
         userProps.put("nisse.source.jgit.countingVersion", "true");
-        userProps.put("nisse.source.jgit.appendSnapshot", "false");
-        userProps.put("nisse.source.jgit.increasePatchVersion", "false");
         JGitPropertySource source = new JGitPropertySource();
-        Map<String, String> properties;
-        String countingVersion;
 
         Path repo = tempDir.resolve("repo");
         Files.createDirectories(repo);
@@ -544,100 +539,205 @@ public class JGitPropertySourceTest {
         exec(repo, "git", "config", "user.email", "test@test.com");
         exec(repo, "git", "config", "user.name", "Test");
 
-        // HEAD must exist
-
-        // v1
+        // 1 plain commit → 0.0.0, commit=1
         Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
         exec(repo, "git", "add", "file.txt");
         exec(repo, "git", "commit", "-m", "initial");
 
-        // starting semver is 0.1.0 and +1 commit
-        assertProperty(
-                "countingVersion",
-                "0.1.0-1",
-                source.getProperties(SimpleNisseConfiguration.builder()
-                        .withCurrentWorkingDirectory(repo)
-                        .withUserProperties(userProps)
-                        .build()));
+        assertCountingVersion("0.0.0-1", source, repo, userProps);
 
-        // v2
+        // 2nd plain commit → 0.0.0, commit=2
         Files.write(repo.resolve("file.txt"), "v2".getBytes(StandardCharsets.UTF_8));
         exec(repo, "git", "add", "file.txt");
         exec(repo, "git", "commit", "-m", "fix");
 
-        // starting semver is 0.1.0 and +2 commit
-        assertProperty(
-                "countingVersion",
-                "0.1.0-2",
-                source.getProperties(SimpleNisseConfiguration.builder()
-                        .withCurrentWorkingDirectory(repo)
-                        .withUserProperties(userProps)
-                        .build()));
+        assertCountingVersion("0.0.0-2", source, repo, userProps);
 
-        // v3 release: [patch] - 0.1.0 -> 0.1.1
-        Files.write(repo.resolve("file.txt"), "v3".getBytes(StandardCharsets.UTF_8));
-        exec(repo, "git", "add", "file.txt");
-        exec(repo, "git", "commit", "-m", "[patch] release");
+        // [patch] → patch=1, commit=0
+        exec(repo, "git", "commit", "--allow-empty", "-m", "[patch] release");
 
-        // release 0.1.1
-        assertProperty(
-                "countingVersion",
-                "0.1.1",
-                source.getProperties(SimpleNisseConfiguration.builder()
-                        .withCurrentWorkingDirectory(repo)
-                        .withUserProperties(userProps)
-                        .build()));
+        assertCountingVersion("0.0.1", source, repo, userProps);
 
-        // tag release
-        exec(repo, "git", "tag", "0.1.1");
-
-        // v4
+        // plain commit after [patch] → 0.0.1, commit=1
         Files.write(repo.resolve("file.txt"), "v4".getBytes(StandardCharsets.UTF_8));
         exec(repo, "git", "add", "file.txt");
         exec(repo, "git", "commit", "-m", "fix");
 
-        // 0.1.1 and +1 commit
-        assertProperty(
-                "countingVersion",
-                "0.1.1-1",
-                source.getProperties(SimpleNisseConfiguration.builder()
-                        .withCurrentWorkingDirectory(repo)
-                        .withUserProperties(userProps)
-                        .build()));
+        assertCountingVersion("0.0.1-1", source, repo, userProps);
 
-        // v5 release: [minor] - 0.1.1 -> 0.2.0
+        // [minor] → minor=1, patch=0, commit=0
         exec(repo, "git", "commit", "--allow-empty", "-m", "[minor] release");
 
-        assertProperty(
-                "countingVersion",
-                "0.2.0",
-                source.getProperties(SimpleNisseConfiguration.builder()
-                        .withCurrentWorkingDirectory(repo)
-                        .withUserProperties(userProps)
-                        .build()));
+        assertCountingVersion("0.1.0", source, repo, userProps);
 
-        // tag release
-        exec(repo, "git", "tag", "0.2.0");
+        // plain commit → 0.1.0, commit=1
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix");
 
-        // v6
-        Files.write(repo.resolve("file.txt"), "v6".getBytes(StandardCharsets.UTF_8));
-        exec(repo, "git", "add", "file.txt");
-        exec(repo, "git", "commit", "-m", "fix");
+        assertCountingVersion("0.1.0-1", source, repo, userProps);
 
-        // 0.2.0 and +1 commit
-        assertProperty(
-                "countingVersion",
-                "0.2.0-1",
-                source.getProperties(SimpleNisseConfiguration.builder()
-                        .withCurrentWorkingDirectory(repo)
-                        .withUserProperties(userProps)
-                        .build()));
+        // [major] → major=1, minor=0, patch=0, commit=0
+        exec(repo, "git", "commit", "--allow-empty", "-m", "[major] big change");
+
+        assertCountingVersion("1.0.0", source, repo, userProps);
+
+        // plain commit → 1.0.0, commit=1
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix");
+
+        assertCountingVersion("1.0.0-1", source, repo, userProps);
     }
 
-    private static void assertProperty(String key, String expectedValue, Map<String, String> properties) {
+    @Test
+    void testCountingVersionStartFrom(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.countingVersion", "true");
+        userProps.put("nisse.source.jgit.countingVersion.startMajor", "0");
+        userProps.put("nisse.source.jgit.countingVersion.startMinor", "0");
+        userProps.put("nisse.source.jgit.countingVersion.startPatch", "1");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // 1 plain commit with startPatch=1 → 0.0.1, commit=1
+        exec(repo, "git", "commit", "--allow-empty", "-m", "initial");
+
+        assertCountingVersion("0.0.1-1", source, repo, userProps);
+
+        // [minor] → minor=1, patch=0, commit=0
+        exec(repo, "git", "commit", "--allow-empty", "-m", "[minor] release");
+
+        assertCountingVersion("0.1.0", source, repo, userProps);
+    }
+
+    @Test
+    void testCountingVersionPattern(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.countingVersion", "true");
+        // Use dot separator like gradle-git-versioner: %M.%m.%p(.%c)
+        userProps.put("nisse.source.jgit.countingVersion.pattern", "%M.%m.%p(.%c)");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // [minor] then 2 plain commits
+        exec(repo, "git", "commit", "--allow-empty", "-m", "[minor] first");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix 1");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix 2");
+
+        // With dot pattern: 0.1.0.2
+        assertCountingVersion("0.1.0.2", source, repo, userProps);
+
+        // [patch] resets commit → 0.1.1 (no .0 suffix)
+        exec(repo, "git", "commit", "--allow-empty", "-m", "[patch] release");
+
+        assertCountingVersion("0.1.1", source, repo, userProps);
+    }
+
+    @Test
+    void testCountingVersionFullMessage(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.countingVersion", "true");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // Directive in commit body (not subject line) should still match
+        exec(repo, "git", "commit", "--allow-empty", "-m", "some fix\n\n[minor] bump version");
+
+        assertCountingVersion("0.1.0", source, repo, userProps);
+    }
+
+    @Test
+    void testCountingVersionTagsIgnored(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.countingVersion", "true");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // [minor] commit, tagged
+        exec(repo, "git", "commit", "--allow-empty", "-m", "[minor] release");
+        exec(repo, "git", "tag", "v0.1.0");
+
+        // Version on the tag should be 0.1.0 — no double-bump
+        assertCountingVersion("0.1.0", source, repo, userProps);
+
+        // 1 plain commit after tag
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix");
+
+        // Should be 0.1.0-1 — tags don't affect counting, only commit messages
+        assertCountingVersion("0.1.0-1", source, repo, userProps);
+    }
+
+    @Test
+    void testCountingVersionCustomMatch(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.countingVersion", "true");
+        userProps.put("nisse.source.jgit.countingVersion.matchMinor", "#minor");
+        userProps.put("nisse.source.jgit.countingVersion.matchPatch", "#patch");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // Default [minor] should NOT match with custom config
+        exec(repo, "git", "commit", "--allow-empty", "-m", "[minor] release");
+
+        assertCountingVersion("0.0.0-1", source, repo, userProps);
+
+        // Custom #minor SHOULD match
+        exec(repo, "git", "commit", "--allow-empty", "-m", "#minor release");
+
+        assertCountingVersion("0.1.0", source, repo, userProps);
+    }
+
+    @Test
+    void testFormatCountingVersion() {
+        // Default pattern with commit count
+        assertEquals("1.2.3-4", JGitPropertySource.formatCountingVersion("%M.%m.%p(-%c)", 1, 2, 3, 4));
+        // Default pattern without commit count
+        assertEquals("1.2.3", JGitPropertySource.formatCountingVersion("%M.%m.%p(-%c)", 1, 2, 3, 0));
+        // Dot pattern with commit count
+        assertEquals("1.2.3.4", JGitPropertySource.formatCountingVersion("%M.%m.%p(.%c)", 1, 2, 3, 4));
+        // Dot pattern without commit count
+        assertEquals("1.2.3", JGitPropertySource.formatCountingVersion("%M.%m.%p(.%c)", 1, 2, 3, 0));
+        // No conditional section
+        assertEquals("1.2.3", JGitPropertySource.formatCountingVersion("%M.%m.%p", 1, 2, 3, 0));
+        assertEquals("1.2.3", JGitPropertySource.formatCountingVersion("%M.%m.%p", 1, 2, 3, 5));
+    }
+
+    private static void assertCountingVersion(
+            String expected, JGitPropertySource source, Path repo, Map<String, String> userProps) throws Exception {
+        Map<String, String> properties = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
         String value = properties.get("countingVersion");
-        assertNotNull(value, key + " should be set");
-        assertEquals(expectedValue, value, "Unexpected value for countingVersion: " + key);
+        assertNotNull(value, "countingVersion should be set");
+        assertEquals(expected, value);
     }
 
     private static void exec(Path workDir, String... command) throws Exception {
