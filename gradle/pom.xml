@@ -17,43 +17,120 @@
     <version>0.8.5-SNAPSHOT</version>
   </parent>
 
-  <artifactId>gradle</artifactId>
-  <packaging>toolrunner</packaging>
+  <groupId>eu.maveniverse.gradle.plugins</groupId>
+  <artifactId>nisse-gradle-plugin</artifactId>
+  <packaging>pom</packaging>
 
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
-    <version.toolrunner>0.2.1</version.toolrunner>
+    <version.toolrunner>0.2.3</version.toolrunner>
+    <localRepository>${project.build.directory}/local-repo</localRepository>
   </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>eu.maveniverse.maven.nisse</groupId>
+      <artifactId>core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>eu.maveniverse.maven.nisse.sources</groupId>
+      <artifactId>jgit-source</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>eu.maveniverse.maven.nisse.sources</groupId>
+      <artifactId>os-source</artifactId>
+    </dependency>
+  </dependencies>
 
   <build>
     <plugins>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-clean-plugin</artifactId>
+        <configuration>
+          <filesets>
+            <fileset>
+              <directory>${project.basedir}/.gradle</directory>
+            </fileset>
+            <fileset>
+              <directory>${project.basedir}/gradle</directory>
+            </fileset>
+            <fileset>
+              <directory>${project.basedir}/build</directory>
+            </fileset>
+          </filesets>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-invoker-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>create-local-repository</id>
+            <goals>
+              <goal>install</goal>
+            </goals>
+            <phase>prepare-package</phase>
+            <configuration>
+              <localRepositoryPath>${localRepository}</localRepositoryPath>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>eu.maveniverse.maven.plugins</groupId>
         <artifactId>toolrunner</artifactId>
         <version>${version.toolrunner}</version>
-        <extensions>true</extensions>
-        <configuration>
-          <toolName>gradle</toolName>
-          <toolVersion>9.5.0</toolVersion>
-          <isTransient>true</isTransient>
-          <arguments>
-            <argument>--no-daemon</argument>
-            <argument>build</argument>
-          </arguments>
-        </configuration>
         <dependencies>
-          <dependency>
-            <groupId>eu.maveniverse.maven.toolrunner</groupId>
-            <artifactId>extension</artifactId>
-            <version>${version.toolrunner}</version>
-          </dependency>
           <dependency>
             <groupId>eu.maveniverse.maven.toolrunner.tools</groupId>
             <artifactId>gradle</artifactId>
             <version>${version.toolrunner}</version>
           </dependency>
         </dependencies>
+        <executions>
+          <execution>
+            <id>gradle-build</id>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <phase>package</phase>
+            <configuration>
+              <toolName>gradle</toolName>
+              <toolVersion>9.5.1</toolVersion>
+              <allowPathDetection>true</allowPathDetection>
+              <isTransient>true</isTransient>
+              <arguments>
+                <argument>--no-daemon</argument>
+                <argument>-PmavenProjectVersion=${project.version}</argument>
+                <argument>-PmavenLocalRepository=${localRepository}</argument>
+                <argument>build</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>attach-gradle-plugin</id>
+            <goals>
+              <goal>attach-artifact</goal>
+            </goals>
+            <phase>package</phase>
+            <configuration>
+              <artifacts>
+                <artifact>
+                  <file>${project.basedir}/build/libs/nisse-gradle-plugin-${project.version}.jar</file>
+                  <type>jar</type>
+                </artifact>
+              </artifacts>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
