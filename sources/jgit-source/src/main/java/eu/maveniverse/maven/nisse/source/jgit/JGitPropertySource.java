@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -66,6 +67,8 @@ public class JGitPropertySource implements PropertySource {
 
     private static final String JGIT_DYNAMIC_VERSION = "dynamicVersion";
 
+    private static final String JGIT_COUNTING_VERSION = "countingVersion";
+
     private static final String JGIT_CLEAN = "clean";
 
     private static final String JGIT_BRANCH_NAME = "branchName";
@@ -81,11 +84,79 @@ public class JGitPropertySource implements PropertySource {
     /**
      * Set to {@code true} to enable "dynamic version" feature, it adds the
      * {@link #JGIT_DYNAMIC_VERSION} property to resulting properties.
-     *
      */
     private static final String JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION = "nisse.source.jgit.dynamicVersion";
 
     private static final String DEFAULT_DYNAMIC_VERSION = Boolean.FALSE.toString();
+
+    /**
+     * Set to {@code true} to enable "counting version" feature, it adds the
+     * {@link #JGIT_COUNTING_VERSION} property to resulting properties.
+     * <p>
+     * Counting version walks the entire commit history from oldest to newest,
+     * accumulating version bumps from commit message directives ({@code [major]},
+     * {@code [minor]}, {@code [patch]}). Commits without a directive increment
+     * the commit count. This is compatible with the
+     * <a href="https://github.com/nickolay-kondratyev/gradle-git-versioner">gradle-git-versioner</a>
+     * plugin.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_COUNTING_VERSION = "nisse.source.jgit.countingVersion";
+
+    private static final String DEFAULT_COUNTING_VERSION = Boolean.FALSE.toString();
+
+    /**
+     * The major version to start counting from. Default is {@code 0}.
+     */
+    private static final String JGIT_CONF_COUNTING_START_MAJOR = "nisse.source.jgit.countingVersion.startMajor";
+
+    private static final String DEFAULT_COUNTING_START_MAJOR = "0";
+
+    /**
+     * The minor version to start counting from. Default is {@code 0}.
+     */
+    private static final String JGIT_CONF_COUNTING_START_MINOR = "nisse.source.jgit.countingVersion.startMinor";
+
+    private static final String DEFAULT_COUNTING_START_MINOR = "0";
+
+    /**
+     * The patch version to start counting from. Default is {@code 0}.
+     */
+    private static final String JGIT_CONF_COUNTING_START_PATCH = "nisse.source.jgit.countingVersion.startPatch";
+
+    private static final String DEFAULT_COUNTING_START_PATCH = "0";
+
+    /**
+     * The string to match in commit messages for major version bumps. Default is {@code [major]}.
+     */
+    private static final String JGIT_CONF_COUNTING_MATCH_MAJOR = "nisse.source.jgit.countingVersion.matchMajor";
+
+    private static final String DEFAULT_COUNTING_MATCH_MAJOR = "[major]";
+
+    /**
+     * The string to match in commit messages for minor version bumps. Default is {@code [minor]}.
+     */
+    private static final String JGIT_CONF_COUNTING_MATCH_MINOR = "nisse.source.jgit.countingVersion.matchMinor";
+
+    private static final String DEFAULT_COUNTING_MATCH_MINOR = "[minor]";
+
+    /**
+     * The string to match in commit messages for patch version bumps. Default is {@code [patch]}.
+     */
+    private static final String JGIT_CONF_COUNTING_MATCH_PATCH = "nisse.source.jgit.countingVersion.matchPatch";
+
+    private static final String DEFAULT_COUNTING_MATCH_PATCH = "[patch]";
+
+    /**
+     * The pattern to format the counting version. Supports placeholders:
+     * {@code %M} (major), {@code %m} (minor), {@code %p} (patch), {@code %c} (commit count).
+     * Parenthesised sections like {@code (-%c)} are included only when commit count &gt; 0.
+     * <p>
+     * Default is {@code %M.%m.%p(-%c)} which produces e.g. {@code 1.2.3} or {@code 1.2.3-4}.
+     * Use {@code %M.%m.%p(.%c)} for dot-separated commit count like gradle-git-versioner.
+     */
+    private static final String JGIT_CONF_COUNTING_PATTERN = "nisse.source.jgit.countingVersion.pattern";
+
+    private static final String DEFAULT_COUNTING_PATTERN = "%M.%m.%p(-%c)";
 
     /**
      * Whether the patch version shall be increased or not, when calculating dynamic version and there is no tag
@@ -235,6 +306,11 @@ public class JGitPropertySource implements PropertySource {
                             .getConfiguration()
                             .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
                         result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, git, head));
+                    }
+                    if (Boolean.parseBoolean(configuration
+                            .getConfiguration()
+                            .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_COUNTING_VERSION, DEFAULT_COUNTING_VERSION))) {
+                        result.put(JGIT_COUNTING_VERSION, resolveCountingVersion(configuration, git, head));
                     }
                 }
             }
@@ -440,6 +516,81 @@ public class JGitPropertySource implements PropertySource {
         return vi.toString();
     }
 
+    /**
+     * Resolves the counting version by walking the entire commit history from oldest to newest,
+     * accumulating version bumps from commit message directives. This is compatible with the
+     * gradle-git-versioner algorithm: each commit either bumps a version component (and resets
+     * lower components and the commit count) or increments the commit count.
+     */
+    String resolveCountingVersion(NisseConfiguration configuration, Git git, ObjectId head) throws Exception {
+        Map<String, String> config = configuration.getConfiguration();
+
+        int major = Integer.parseInt(config.getOrDefault(JGIT_CONF_COUNTING_START_MAJOR, DEFAULT_COUNTING_START_MAJOR));
+        int minor = Integer.parseInt(config.getOrDefault(JGIT_CONF_COUNTING_START_MINOR, DEFAULT_COUNTING_START_MINOR));
+        int patch = Integer.parseInt(config.getOrDefault(JGIT_CONF_COUNTING_START_PATCH, DEFAULT_COUNTING_START_PATCH));
+        String matchMajor = config.getOrDefault(JGIT_CONF_COUNTING_MATCH_MAJOR, DEFAULT_COUNTING_MATCH_MAJOR);
+        String matchMinor = config.getOrDefault(JGIT_CONF_COUNTING_MATCH_MINOR, DEFAULT_COUNTING_MATCH_MINOR);
+        String matchPatch = config.getOrDefault(JGIT_CONF_COUNTING_MATCH_PATCH, DEFAULT_COUNTING_MATCH_PATCH);
+        String pattern = config.getOrDefault(JGIT_CONF_COUNTING_PATTERN, DEFAULT_COUNTING_PATTERN);
+
+        int commitCount = 0;
+
+        try {
+            Iterable<RevCommit> commits =
+                    head != null ? git.log().add(head).call() : git.log().call();
+            List<RevCommit> all = new ArrayList<>();
+            for (RevCommit c : commits) {
+                all.add(c);
+            }
+            Collections.reverse(all);
+
+            for (RevCommit c : all) {
+                String message = c.getFullMessage();
+                if (message.contains(matchMajor)) {
+                    major++;
+                    minor = 0;
+                    patch = 0;
+                    commitCount = 0;
+                } else if (message.contains(matchMinor)) {
+                    minor++;
+                    patch = 0;
+                    commitCount = 0;
+                } else if (message.contains(matchPatch)) {
+                    patch++;
+                    commitCount = 0;
+                } else {
+                    commitCount++;
+                }
+            }
+
+            String version = formatCountingVersion(pattern, major, minor, patch, commitCount);
+            logger.debug("counting version resolved to: {}", version);
+            return version;
+        } catch (GitAPIException e) {
+            throw new Exception("Error reading Git information.", e);
+        }
+    }
+
+    /**
+     * Formats a counting version using the given pattern.
+     * <p>
+     * Placeholders: {@code %M} (major), {@code %m} (minor), {@code %p} (patch), {@code %c} (commit count).
+     * Parenthesised sections like {@code (-%c)} are removed entirely when commit count is 0,
+     * and included (without parentheses) when commit count &gt; 0.
+     */
+    static String formatCountingVersion(String pattern, int major, int minor, int patch, int commitCount) {
+        String result = pattern.replace("%M", Integer.toString(major))
+                .replace("%m", Integer.toString(minor))
+                .replace("%p", Integer.toString(patch))
+                .replace("%c", Integer.toString(commitCount));
+        if (commitCount != 0) {
+            result = result.replace("(", "").replace(")", "");
+        } else {
+            result = result.replaceAll("\\([^)]*\\)", "");
+        }
+        return result;
+    }
+
     protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git) throws Exception {
         return getVersionFromGit(configuration, git, git.getRepository().resolve("HEAD"));
     }
@@ -490,7 +641,7 @@ public class JGitPropertySource implements PropertySource {
 
     private Optional<VersionInformation> getHighestVersionTagForCommit(
             NisseConfiguration configuration, Git git, RevCommit commit) throws GitAPIException {
-        // get tags use semantic version (X.Y.Z or vX.Y.Z) for for commit
+        // get tags use semantic version (X.Y.Z or vX.Y.Z) for commit
         List<String> versionTagsForCommit = getVersionedTagsForCommit(configuration, git, commit);
         logger.debug("commit {} {}: {}", commit.getId(), commit.getShortMessage(), versionTagsForCommit.toString());
         return findHighestVersion(versionTagsForCommit);
