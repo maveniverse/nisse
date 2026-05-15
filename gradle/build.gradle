@@ -1,24 +1,15 @@
 plugins {
     id('java-gradle-plugin')
-    id("com.gradle.plugin-publish") version "2.1.1"
-    id("pl.allegro.tech.build.axion-release") version "1.21.1"
-}
-
-scmVersion {
-    tag {
-        prefix.set("")
-    }
-    versionCreator("simple")
 }
 
 group = "eu.maveniverse.gradle.plugins"
-version = "${nisseVersion}"
+version = "${mavenProjectVersion}"
 
 gradlePlugin {
     website = "https://maveniverse.eu/docs/nisse/"
     vcsUrl = "https://github.com/maveniverse/nisse"
     plugins {
-        create("nisse") {
+        create("nisse-gradle-plugin") {
             id = "eu.maveniverse.gradle.plugins.nisse-gradle-plugin"
             displayName = "Maveniverse Nisse"
             description = "Sets project properties from discovered sources."
@@ -30,12 +21,15 @@ gradlePlugin {
 
 repositories {
     mavenCentral()
+    maven {
+        url = "${mavenLocalRepository}"
+    }
 }
 
 dependencies {
-    implementation("eu.maveniverse.maven.nisse:core:${nisseVersion}")
-    implementation("eu.maveniverse.maven.nisse.sources:jgit-source:${nisseVersion}")
-    implementation("eu.maveniverse.maven.nisse.sources:os-source:${nisseVersion}")
+    implementation("eu.maveniverse.maven.nisse:core:${mavenProjectVersion}")
+    implementation("eu.maveniverse.maven.nisse.sources:jgit-source:${mavenProjectVersion}")
+    implementation("eu.maveniverse.maven.nisse.sources:os-source:${mavenProjectVersion}")
 
     testImplementation(gradleTestKit())
     testImplementation("org.junit.jupiter:junit-jupiter-api:6.0.3")
