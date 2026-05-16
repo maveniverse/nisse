@@ -45,6 +45,29 @@ Note that this only works when Nisse is declared as a ["core extension"](https:/
 (Maven 3 and 4) through **.mvn/extensions.xml** or as a "user-wide extension" (Maven 4 only) through **~/.m2/extensions.xml**.
 Otherwise, one may use `dump-properties` Mojo or the `nisse.dump` property of `inject-properties` Mojo. 
 
+## Usage with Gradle
+
+Nisse is also available as a Gradle plugin. See the [Gradle Plugin documentation](gradle/README.md) for full details.
+
+Minimal setup:
+
+```groovy
+plugins {
+    id("eu.maveniverse.gradle.plugins.nisse-gradle-plugin") version "${nisseVersion}"
+}
+
+// Access discovered properties in tasks
+tasks.register("showVersion") {
+    doLast {
+        println "OS: ${project.nisse['nisse.os.name']}"
+        println "Git commit: ${project.nisse['nisse.jgit.commit']}"
+    }
+}
+```
+
+The plugin supports a `nisseConfig` DSL for configuring sources (dynamic version, counting
+version, deactivating sources, etc.) — see the [Gradle README](gradle/README.md).
+
 ## Implemented Sources
 
 There are 4 sources provided out of the box:

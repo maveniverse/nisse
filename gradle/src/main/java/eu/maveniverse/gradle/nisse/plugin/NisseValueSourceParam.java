@@ -8,6 +8,7 @@
 package eu.maveniverse.gradle.nisse.plugin;
 
 import java.io.File;
+import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.ValueSourceParameters;
 
@@ -28,4 +29,13 @@ public interface NisseValueSourceParam extends ValueSourceParameters {
      * @return the path of root directory.
      */
     Property<File> getRoot();
+
+    /**
+     * User-provided configuration properties from the {@code nisseConfig} DSL extension.
+     * These are passed as user properties to the Nisse configuration
+     * (e.g. {@code nisse.source.jgit.dynamicVersion=true}).
+     *
+     * @return the map of user properties.
+     */
+    MapProperty<String, String> getUserProperties();
 }

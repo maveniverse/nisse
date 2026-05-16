@@ -13,6 +13,7 @@ import eu.maveniverse.maven.nisse.core.simple.SimpleNisseManager;
 import eu.maveniverse.maven.nisse.source.jgit.JGitPropertySource;
 import eu.maveniverse.maven.nisse.source.osdetector.OsDetectorPropertySource;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import org.gradle.api.provider.ValueSource;
 import org.jspecify.annotations.Nullable;
@@ -23,8 +24,12 @@ import org.jspecify.annotations.Nullable;
 public abstract class NisseValueSource implements ValueSource<Map<String, String>, NisseValueSourceParam> {
     @Override
     public @Nullable Map<String, String> obtain() {
+        Map<String, String> userProperties = getParameters().getUserProperties().isPresent()
+                ? getParameters().getUserProperties().get()
+                : Collections.emptyMap();
         NisseConfiguration configuration = SimpleNisseConfiguration.builder()
                 .withSystemProperties(System.getProperties())
+                .withUserProperties(userProperties)
                 .withCurrentWorkingDirectory(getParameters().getCwd().get().toPath())
                 .withSessionRootDirectory(getParameters().getRoot().get().toPath())
                 .build();
