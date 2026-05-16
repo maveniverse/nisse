@@ -26,6 +26,7 @@
   <properties>
     <version.toolrunner>0.2.3</version.toolrunner>
     <localRepository>${project.build.directory}/local-repo</localRepository>
+    <gradleTask>build</gradleTask>
   </properties>
 
   <dependencies>
@@ -105,7 +106,7 @@
                 <argument>--no-daemon</argument>
                 <argument>-PmavenProjectVersion=${project.version}</argument>
                 <argument>-PmavenLocalRepository=${localRepository}</argument>
-                <argument>build</argument>
+                <argument>${gradleTask}</argument>
               </arguments>
             </configuration>
           </execution>
@@ -135,4 +136,12 @@
     </plugins>
   </build>
 
+  <profiles>
+    <profile>
+      <id>maveniverse-release</id>
+      <properties>
+        <gradleTask>publishPlugins</gradleTask>
+      </properties>
+    </profile>
+  </profiles>
 </project>
