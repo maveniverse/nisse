@@ -38,6 +38,10 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.0.3")
 }
 
+tasks.compileJava {
+    options.release.set(8)
+}
+
 tasks.named('test', Test) {
     useJUnitPlatform()
 
