@@ -24,7 +24,7 @@
   <name>${project.groupId}:${project.artifactId}</name>
 
   <properties>
-    <version.toolrunner>0.2.3</version.toolrunner>
+    <version.toolrunner>0.2.4</version.toolrunner>
     <localRepository>${project.build.directory}/local-repo</localRepository>
     <gradleTask>build</gradleTask>
   </properties>
