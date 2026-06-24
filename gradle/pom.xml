@@ -100,7 +100,7 @@
             <configuration>
               <toolName>gradle</toolName>
               <toolVersion>9.5.1</toolVersion>
-              <allowPathDetection>true</allowPathDetection>
+              <allowOsPathEnvDetection>true</allowOsPathEnvDetection>
               <isTransient>true</isTransient>
               <arguments>
                 <argument>--no-daemon</argument>
