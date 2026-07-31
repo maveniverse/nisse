@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Named;
@@ -244,6 +245,13 @@ public class JGitPropertySource implements PropertySource {
     protected static final Pattern TAG_VERSION_PATTERN = Pattern.compile("refs/tags/v?((\\d+\\.\\d+\\.\\d+)(.*))");
 
     /**
+     * Matches the credential-bearing userinfo (user, or user:password) in an HTTP(S) remote URL,
+     * e.g. {@code https://user:token@host/repo.git}. SSH-style URLs (scp-like {@code git@host:path}
+     * or {@code ssh://user@host/path}) never match, since they carry no scheme or a non-http(s) one.
+     */
+    private static final Pattern HTTP_CREDENTIAL_PATTERN = Pattern.compile("^(https?://)[^/@]+@(.*)$");
+
+    /**
      * The default version if no version can be determined from git.
      */
     protected final String defaultVersion = "0.1.0";
@@ -262,6 +270,10 @@ public class JGitPropertySource implements PropertySource {
 
     private final VersionScheme versionScheme = new GenericVersionScheme();
 
+    /**
+     * Splits incoming string at comma, semicolon or pipe character, and after trimming and filtering
+     * for empty strings, returns the resulted list of strings.
+     */
     private static List<String> csv(String csv) {
         if (csv == null || csv.trim().isEmpty()) {
             return Collections.emptyList();
@@ -270,6 +282,16 @@ public class JGitPropertySource implements PropertySource {
                 .map(String::trim)
                 .filter(name -> !name.isEmpty())
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Strips {@code user:password@}/{@code user@} userinfo from HTTP(S) remote URLs so credentials
+     * never leak into build properties. SSH-style URLs (scp-like or {@code ssh://}) are left untouched,
+     * since their userinfo is at most a login name, never a secret.
+     */
+    static String redactCredentials(String url) {
+        Matcher m = HTTP_CREDENTIAL_PATTERN.matcher(url);
+        return m.matches() ? m.group(1) + m.group(2) : url;
     }
 
     @Override
@@ -329,11 +351,14 @@ public class JGitPropertySource implements PropertySource {
                             .getConfiguration()
                             .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_REMOTE_NAMES, DEFAULT_REMOTE_NAMES));
                     for (String remote : wantedRemotes) {
-                        String url = config.getString(
-                                ConfigConstants.CONFIG_REMOTE_SECTION, remote, ConfigConstants.CONFIG_KEY_URL);
+                        String url = Arrays.stream(config.getStringList(
+                                        ConfigConstants.CONFIG_REMOTE_SECTION, remote, ConfigConstants.CONFIG_KEY_URL))
+                                .filter(value -> value != null && !value.trim().isEmpty())
+                                .findFirst()
+                                .orElse(null);
                         if (url != null && !url.trim().isEmpty()) {
                             result.put(JGIT_REMOTE_NAME, remote);
-                            result.put(JGIT_REMOTE_URL, url);
+                            result.put(JGIT_REMOTE_URL, redactCredentials(url));
                             break;
                         }
                     }
