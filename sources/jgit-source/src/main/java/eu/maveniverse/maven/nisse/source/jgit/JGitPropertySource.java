@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -36,6 +37,8 @@ import org.eclipse.aether.version.VersionScheme;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
+import org.eclipse.jgit.lib.Config;
+import org.eclipse.jgit.lib.ConfigConstants;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
@@ -72,6 +75,10 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_CLEAN = "clean";
 
     private static final String JGIT_BRANCH_NAME = "branchName";
+
+    private static final String JGIT_REMOTE_NAME = "remoteName";
+
+    private static final String JGIT_REMOTE_URL = "remoteUrl";
 
     /**
      * Specify the length for the short commit id.
@@ -241,9 +248,26 @@ public class JGitPropertySource implements PropertySource {
      */
     protected final String defaultVersion = "0.1.0";
 
+    /**
+     * Configure the list of remote names you are interested in (in order).
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_REMOTE_NAMES = "nisse.source.jgit.remoteNames";
+
+    /**
+     * The default remote names.
+     */
+    private static final String DEFAULT_REMOTE_NAMES = "upstream,origin";
+
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
     private final VersionScheme versionScheme = new GenericVersionScheme();
+
+    private static List<String> csv(String csv) {
+        if (csv == null || csv.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return Arrays.asList(csv.split("[,;|]"));
+    }
 
     @Override
     public String getName() {
@@ -296,6 +320,20 @@ public class JGitPropertySource implements PropertySource {
                             JGIT_AUTHOR,
                             lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
                     result.put(JGIT_CLEAN, Boolean.toString(isClean(git)));
+
+                    Config config = repository.getConfig();
+                    List<String> wantedRemotes = csv(configuration
+                            .getConfiguration()
+                            .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_REMOTE_NAMES, DEFAULT_REMOTE_NAMES));
+                    for (String remote : wantedRemotes) {
+                        String url = config.getString(
+                                ConfigConstants.CONFIG_REMOTE_SECTION, remote, ConfigConstants.CONFIG_KEY_URL);
+                        if (url != null && !url.trim().isEmpty()) {
+                            result.put(JGIT_REMOTE_NAME, remote);
+                            result.put(JGIT_REMOTE_URL, url);
+                            break;
+                        }
+                    }
 
                     Optional<Ref> localBranch = localBranch(git, head);
                     localBranch
