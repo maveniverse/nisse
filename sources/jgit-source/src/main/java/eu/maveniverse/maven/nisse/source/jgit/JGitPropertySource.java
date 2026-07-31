@@ -266,7 +266,10 @@ public class JGitPropertySource implements PropertySource {
         if (csv == null || csv.trim().isEmpty()) {
             return Collections.emptyList();
         }
-        return Arrays.asList(csv.split("[,;|]"));
+        return Arrays.stream(csv.split("[,;|]"))
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .collect(Collectors.toList());
     }
 
     @Override
