@@ -18,6 +18,7 @@ import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.inject.Named;
@@ -36,6 +38,8 @@ import org.eclipse.aether.version.VersionScheme;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
+import org.eclipse.jgit.lib.Config;
+import org.eclipse.jgit.lib.ConfigConstants;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
@@ -72,6 +76,10 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_CLEAN = "clean";
 
     private static final String JGIT_BRANCH_NAME = "branchName";
+
+    private static final String JGIT_REMOTE_NAME = "remoteName";
+
+    private static final String JGIT_REMOTE_URL = "remoteUrl";
 
     /**
      * Specify the length for the short commit id.
@@ -237,13 +245,54 @@ public class JGitPropertySource implements PropertySource {
     protected static final Pattern TAG_VERSION_PATTERN = Pattern.compile("refs/tags/v?((\\d+\\.\\d+\\.\\d+)(.*))");
 
     /**
+     * Matches the credential-bearing userinfo (user, or user:password) in an HTTP(S) remote URL,
+     * e.g. {@code https://user:token@host/repo.git}. SSH-style URLs (scp-like {@code git@host:path}
+     * or {@code ssh://user@host/path}) never match, since they carry no scheme or a non-http(s) one.
+     */
+    private static final Pattern HTTP_CREDENTIAL_PATTERN = Pattern.compile("^(https?://)[^/@]+@(.*)$");
+
+    /**
      * The default version if no version can be determined from git.
      */
     protected final String defaultVersion = "0.1.0";
 
+    /**
+     * Configure the list of remote names you are interested in (in order).
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_REMOTE_NAMES = "nisse.source.jgit.remoteNames";
+
+    /**
+     * The default remote names.
+     */
+    private static final String DEFAULT_REMOTE_NAMES = "upstream,origin";
+
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
     private final VersionScheme versionScheme = new GenericVersionScheme();
+
+    /**
+     * Splits incoming string at comma, semicolon or pipe character, and after trimming and filtering
+     * for empty strings, returns the resulted list of strings.
+     */
+    private static List<String> csv(String csv) {
+        if (csv == null || csv.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(csv.split("[,;|]"))
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Strips {@code user:password@}/{@code user@} userinfo from HTTP(S) remote URLs so credentials
+     * never leak into build properties. SSH-style URLs (scp-like or {@code ssh://}) are left untouched,
+     * since their userinfo is at most a login name, never a secret.
+     */
+    static String redactCredentials(String url) {
+        Matcher m = HTTP_CREDENTIAL_PATTERN.matcher(url);
+        return m.matches() ? m.group(1) + m.group(2) : url;
+    }
 
     @Override
     public String getName() {
@@ -296,6 +345,23 @@ public class JGitPropertySource implements PropertySource {
                             JGIT_AUTHOR,
                             lastCommit.getAuthorIdent().toExternalString().split(">")[0] + ">");
                     result.put(JGIT_CLEAN, Boolean.toString(isClean(git)));
+
+                    Config config = repository.getConfig();
+                    List<String> wantedRemotes = csv(configuration
+                            .getConfiguration()
+                            .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_REMOTE_NAMES, DEFAULT_REMOTE_NAMES));
+                    for (String remote : wantedRemotes) {
+                        String url = Arrays.stream(config.getStringList(
+                                        ConfigConstants.CONFIG_REMOTE_SECTION, remote, ConfigConstants.CONFIG_KEY_URL))
+                                .filter(value -> value != null && !value.trim().isEmpty())
+                                .findFirst()
+                                .orElse(null);
+                        if (url != null && !url.trim().isEmpty()) {
+                            result.put(JGIT_REMOTE_NAME, remote);
+                            result.put(JGIT_REMOTE_URL, redactCredentials(url));
+                            break;
+                        }
+                    }
 
                     Optional<Ref> localBranch = localBranch(git, head);
                     localBranch

@@ -123,6 +123,63 @@ public class JGitPropertySourceTest {
     }
 
     @Test
+    void testRedactCredentialsHttpsUserAndPassword() {
+        assertEquals(
+                "https://github.com/example/repo.git",
+                JGitPropertySource.redactCredentials("https://user:s3cr3t@github.com/example/repo.git"));
+    }
+
+    @Test
+    void testRedactCredentialsHttpsUserOnly() {
+        assertEquals(
+                "https://github.com/example/repo.git",
+                JGitPropertySource.redactCredentials("https://token@github.com/example/repo.git"));
+    }
+
+    @Test
+    void testRedactCredentialsPlainHttpsUnchanged() {
+        assertEquals(
+                "https://github.com/example/repo.git",
+                JGitPropertySource.redactCredentials("https://github.com/example/repo.git"));
+    }
+
+    @Test
+    void testRedactCredentialsScpStyleSshUnchanged() {
+        assertEquals(
+                "git@github.com:example/repo.git",
+                JGitPropertySource.redactCredentials("git@github.com:example/repo.git"));
+    }
+
+    @Test
+    void testRedactCredentialsSshUriUnchanged() {
+        assertEquals(
+                "ssh://git@github.com/example/repo.git",
+                JGitPropertySource.redactCredentials("ssh://git@github.com/example/repo.git"));
+    }
+
+    @Test
+    void testRemoteUrlRedactedFromProperties(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init", "-b", "master");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file.txt");
+        exec(mainRepo, "git", "commit", "-m", "initial commit");
+        exec(mainRepo, "git", "remote", "add", "origin", "https://user:s3cr3t@example.com/example/repo.git");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertEquals("https://example.com/example/repo.git", properties.get("remoteUrl"));
+        assertFalse(properties.get("remoteUrl").contains("s3cr3t"));
+    }
+
+    @Test
     void testVersionHintPatternMatching() {
         JGitPropertySource source = new JGitPropertySource();
 
