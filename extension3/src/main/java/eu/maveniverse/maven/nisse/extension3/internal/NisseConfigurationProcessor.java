@@ -15,6 +15,7 @@ import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.Version;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import javax.inject.Inject;
@@ -34,13 +35,17 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private final NisseManager nisseManager;
     private final SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor;
+    private final NissePropertyKeys nissePropertyKeys;
 
     @Inject
     public NisseConfigurationProcessor(
-            NisseManager nisseManager, SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor) {
+            NisseManager nisseManager,
+            SettingsXmlConfigurationProcessor settingsXmlConfigurationProcessor,
+            NissePropertyKeys nissePropertyKeys) {
         this.nisseManager = requireNonNull(nisseManager, "nisseManager");
         this.settingsXmlConfigurationProcessor =
                 requireNonNull(settingsXmlConfigurationProcessor, "settingsXmlConfigurationProcessor");
+        this.nissePropertyKeys = requireNonNull(nissePropertyKeys, "nissePropertyKeys");
     }
 
     @Override
@@ -76,5 +81,16 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 request.getUserProperties().setProperty(k, v);
             }
         });
+
+        // Register all nisse-prefixed properties (from any origin: nisse sources, -D flags,
+        // maven-user.properties, export-subst, etc.) so that NisseModelVersionProcessor can
+        // validate them without depending on the MavenSession lifecycle.
+        Map<String, String> allNisseProperties = new HashMap<>(nisseProperties);
+        for (String key : request.getUserProperties().stringPropertyNames()) {
+            if (key.startsWith(NisseConfiguration.PROPERTY_PREFIX)) {
+                allNisseProperties.putIfAbsent(key, request.getUserProperties().getProperty(key));
+            }
+        }
+        nissePropertyKeys.putAll(allNisseProperties);
     }
 }
