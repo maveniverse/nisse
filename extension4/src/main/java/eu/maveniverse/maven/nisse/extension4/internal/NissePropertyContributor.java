@@ -61,7 +61,12 @@ final class NissePropertyContributor implements PropertyContributor {
             if (Boolean.parseBoolean(protoSession.getUserProperties().getOrDefault("nisse.dump", "false"))) {
                 nisseProperties.forEach((k, v) -> logger.info("{}={}", k, v));
             }
-            nisseProperties.forEach(result::putIfAbsent);
+            // Use put (not putIfAbsent) so Nisse-computed values always take precedence.
+            // Maven 4 auto-loads .mvn/maven-user.properties before extensions run, which
+            // pre-populates keys (e.g. nisse.jgit.dynamicVersion) with unexpanded export-subst
+            // placeholders like "$Format:%(describe:tags=true)$". putIfAbsent would keep the
+            // placeholder, causing Maven 4's strict POM validation to reject it.
+            nisseProperties.forEach(result::put);
             return result;
         } catch (IOException e) {
             throw new UncheckedIOException("Error while creating Nisse configuration", e);
