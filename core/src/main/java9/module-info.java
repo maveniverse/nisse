@@ -7,6 +7,7 @@
  */
 module eu.maveniverse.maven.nisse.core {
     requires java.base;
+    requires org.slf4j;
 
     exports eu.maveniverse.maven.nisse.core;
     exports eu.maveniverse.maven.nisse.core.simple;

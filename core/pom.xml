@@ -34,6 +34,13 @@
       <scope>provided</scope>
     </dependency>
 
+    <!-- Logging -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
     <!-- Test -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
