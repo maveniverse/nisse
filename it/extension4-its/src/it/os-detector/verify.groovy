@@ -17,8 +17,10 @@ assert buildLog.text.contains ('nisse.os.version.major')
 assert buildLog.text.contains ('nisse.os.version.minor')
 assert buildLog.text.contains ('nisse.os.classifier')
 // Linux only
-// assert buildLog.text.contains ('nisse.os.release')
-// assert buildLog.text.contains ('nisse.os.release.version')
+if (System.getProperty('os.name').toLowerCase().contains('linux')) {
+  assert buildLog.text.contains ('nisse.os.release')
+  assert buildLog.text.contains ('nisse.os.release.version')
+}
 
 // os-detectot keys
 assert buildLog.text.contains ('os.detected.name')
@@ -29,8 +31,10 @@ assert buildLog.text.contains ('os.detected.version.major')
 assert buildLog.text.contains ('os.detected.version.minor')
 assert buildLog.text.contains ('os.detected.classifier')
 // Linux only
-// assert buildLog.text.contains ('os.detected.release')
-// assert buildLog.text.contains ('os.detected.release.version')
+if (System.getProperty('os.name').toLowerCase().contains('linux')) {
+  assert buildLog.text.contains ('os.detected.release')
+  assert buildLog.text.contains ('os.detected.release.version')
+}
 
 // alt keys (from translate properties)
 assert buildLog.text.contains ('something.else.name')
