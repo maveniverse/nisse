@@ -16,8 +16,9 @@ assert buildLog.text.contains ('nisse.os.version')
 assert buildLog.text.contains ('nisse.os.version.major')
 assert buildLog.text.contains ('nisse.os.version.minor')
 assert buildLog.text.contains ('nisse.os.classifier')
-assert buildLog.text.contains ('nisse.os.release')
-assert buildLog.text.contains ('nisse.os.release.version')
+// Linux only
+// assert buildLog.text.contains ('nisse.os.release')
+// assert buildLog.text.contains ('nisse.os.release.version')
 
 // os-detectot keys
 assert buildLog.text.contains ('os.detected.name')
