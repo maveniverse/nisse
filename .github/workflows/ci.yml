@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Verify
-    uses: maveniverse/parent/.github/workflows/ci.yml@release-57
+    uses: maveniverse/parent/.github/workflows/ci.yml@release-60
     with:
       # we do separate IT with mvn3 and mvn4; no need for matrix
       maven-matrix: '[ "3.9.16" ]'
