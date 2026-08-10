@@ -27,8 +27,9 @@ assert buildLog.text.contains ('os.detected.version')
 assert buildLog.text.contains ('os.detected.version.major')
 assert buildLog.text.contains ('os.detected.version.minor')
 assert buildLog.text.contains ('os.detected.classifier')
-assert buildLog.text.contains ('os.detected.release')
-assert buildLog.text.contains ('os.detected.release.version')
+// Linux only
+// assert buildLog.text.contains ('os.detected.release')
+// assert buildLog.text.contains ('os.detected.release.version')
 
 // alt keys (from translate properties)
 assert buildLog.text.contains ('something.else.name')
