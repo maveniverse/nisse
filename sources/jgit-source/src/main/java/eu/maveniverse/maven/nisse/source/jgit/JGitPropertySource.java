@@ -777,8 +777,7 @@ public class JGitPropertySource implements PropertySource {
     }
 
     protected VersionInformation mayAddQualifier(
-            NisseConfiguration configuration, Git git, VersionInformation vi, ObjectId head)
-            throws GitAPIException {
+            NisseConfiguration configuration, Git git, VersionInformation vi, ObjectId head) throws GitAPIException {
         String qualifier = null;
         boolean appendDirty = Boolean.parseBoolean(configuration
                 .getConfiguration()
