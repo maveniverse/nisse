@@ -196,6 +196,13 @@ public class JGitPropertySource implements PropertySource {
     private static final String DEFAULT_APPEND_SNAPSHOT = Boolean.TRUE.toString();
 
     /**
+     * Whether the branch name shall be appended or not.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCHNAME = "nisse.source.jgit.appendBranchName";
+
+    private static final String DEFAULT_APPEND_BRANCH_NAME = Boolean.FALSE.toString();
+
+    /**
      * Whether the DIRTY qualifier shall be appended or not.
      */
     private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY = "nisse.source.jgit.appendDirty";
@@ -542,7 +549,7 @@ public class JGitPropertySource implements PropertySource {
 
                 if (isCustomPattern) {
                     // With custom pattern, version hints take priority (git history only contains matching tags)
-                    vi = mayAddQualifier(configuration, git, hintVersion);
+                    vi = mayAddQualifier(configuration, git, hintVersion, head);
                     logger.debug("Using version hint (custom pattern): {}", versionHint.get());
                 } else {
                     // With default pattern, compare versions
@@ -553,7 +560,7 @@ public class JGitPropertySource implements PropertySource {
 
                     if (isDefaultGitVersion) {
                         // No regular release tags found, use version hint directly
-                        vi = mayAddQualifier(configuration, git, hintVersion);
+                        vi = mayAddQualifier(configuration, git, hintVersion, head);
                         logger.debug("Using version hint (no regular release tags found): {}", versionHint.get());
                     } else {
                         // Compare versions - use hint only if it's higher than git history version
@@ -562,7 +569,7 @@ public class JGitPropertySource implements PropertySource {
 
                         if (hintVersionParsed.compareTo(gitHistoryVersionParsed) > 0) {
                             // Version hint is higher, use it
-                            vi = mayAddQualifier(configuration, git, hintVersion);
+                            vi = mayAddQualifier(configuration, git, hintVersion, head);
                             logger.debug("Using version hint (higher than git history): {}", versionHint.get());
                         } else {
                             // Git history version is higher or equal, use it
@@ -697,12 +704,12 @@ public class JGitPropertySource implements PropertySource {
                         if (appendBuildNumber) {
                             vi.setBuildNumber(count);
                         }
-                        return mayAddQualifier(configuration, git, vi);
+                        return mayAddQualifier(configuration, git, vi, head);
                     }
                 }
                 count++;
             }
-            return mayAddQualifier(configuration, git, new VersionInformation(defaultVersion + "-" + count));
+            return mayAddQualifier(configuration, git, new VersionInformation(defaultVersion + "-" + count), head);
         } catch (GitAPIException e) {
             throw new Exception("Error reading Git information.", e);
         }
@@ -769,8 +776,8 @@ public class JGitPropertySource implements PropertySource {
         }
     }
 
-    protected VersionInformation mayAddQualifier(NisseConfiguration configuration, Git git, VersionInformation vi)
-            throws GitAPIException {
+    protected VersionInformation mayAddQualifier(
+            NisseConfiguration configuration, Git git, VersionInformation vi, ObjectId head) throws GitAPIException {
         String qualifier = null;
         boolean appendDirty = Boolean.parseBoolean(configuration
                 .getConfiguration()
@@ -782,6 +789,15 @@ public class JGitPropertySource implements PropertySource {
                         configuration
                                 .getConfiguration()
                                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DIRTY_QUALIFIER, DEFAULT_DIRTY_QUALIFIER));
+            }
+        }
+        boolean appendBranchName = Boolean.parseBoolean(configuration
+                .getConfiguration()
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCHNAME, DEFAULT_APPEND_BRANCH_NAME));
+        if (appendBranchName) {
+            Optional<String> localBranch = localBranch(git, head).map(r -> Repository.shortenRefName(r.getName()));
+            if (localBranch.isPresent()) {
+                qualifier = appendQualifier(qualifier, localBranch.get());
             }
         }
         boolean appendSnapshot = Boolean.parseBoolean(configuration
