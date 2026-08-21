@@ -81,6 +81,8 @@ public class JGitPropertySource implements PropertySource {
 
     private static final String JGIT_REMOTE_URL = "remoteUrl";
 
+    private static final String JGIT_COMMON_DIR = "commonDir";
+
     /**
      * Specify the length for the short commit id.
      */
@@ -324,6 +326,7 @@ public class JGitPropertySource implements PropertySource {
                     File commonDir =
                             gitDir.toPath().resolve(commonDirRef).normalize().toFile();
                     logger.debug("Detected git worktree: gitDir={}, commonDir={}", gitDir, commonDir);
+                    result.put(JGIT_COMMON_DIR, commonDir.getAbsolutePath());
                     builder.setGitDir(commonDir);
                     builder.setWorkTree(cwd);
                     builder.setIndexFile(worktreeGitDir.resolve("index").toFile());
