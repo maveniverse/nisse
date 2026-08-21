@@ -709,7 +709,7 @@ public class JGitPropertySource implements PropertySource {
                 }
                 count++;
             }
-            return mayAddQualifier(configuration, git, new VersionInformation(defaultVersion + "-" + count), null);
+            return mayAddQualifier(configuration, git, new VersionInformation(defaultVersion + "-" + count), head);
         } catch (GitAPIException e) {
             throw new Exception("Error reading Git information.", e);
         }
@@ -778,7 +778,7 @@ public class JGitPropertySource implements PropertySource {
 
     protected VersionInformation mayAddQualifier(
             NisseConfiguration configuration, Git git, VersionInformation vi, ObjectId head)
-            throws GitAPIException, IOException {
+            throws GitAPIException {
         String qualifier = null;
         boolean appendDirty = Boolean.parseBoolean(configuration
                 .getConfiguration()
