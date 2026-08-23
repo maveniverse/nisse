@@ -786,6 +786,15 @@ public class JGitPropertySourceTest {
         assertEquals("1.2.3", JGitPropertySource.formatCountingVersion("%M.%m.%p", 1, 2, 3, 5));
     }
 
+    @Test
+    void sanitizeBranchName() {
+        assertEquals("master", JGitPropertySource.sanitizeBranchName("master"));
+        assertEquals("feat-cool-feature-01", JGitPropertySource.sanitizeBranchName("feat/cool-feature-01"));
+        assertEquals(
+                "is-this-valid-branch-name-at-all",
+                JGitPropertySource.sanitizeBranchName("is this valid branch name at all?"));
+    }
+
     private static void assertCountingVersion(
             String expected, JGitPropertySource source, Path repo, Map<String, String> userProps) throws Exception {
         Map<String, String> properties = source.getProperties(SimpleNisseConfiguration.builder()

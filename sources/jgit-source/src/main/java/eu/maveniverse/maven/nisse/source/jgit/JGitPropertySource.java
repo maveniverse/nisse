@@ -198,7 +198,7 @@ public class JGitPropertySource implements PropertySource {
     /**
      * Whether the branch name shall be appended or not.
      */
-    private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCHNAME = "nisse.source.jgit.appendBranchName";
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCH_NAME = "nisse.source.jgit.appendBranchName";
 
     private static final String DEFAULT_APPEND_BRANCH_NAME = Boolean.FALSE.toString();
 
@@ -381,7 +381,7 @@ public class JGitPropertySource implements PropertySource {
                     if (Boolean.parseBoolean(configuration
                             .getConfiguration()
                             .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
-                        result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, git, head));
+                        result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(result, configuration, git, head));
                     }
                     if (Boolean.parseBoolean(configuration
                             .getConfiguration()
@@ -517,11 +517,8 @@ public class JGitPropertySource implements PropertySource {
         }
     }
 
-    public String resolveDynamicVersion(NisseConfiguration configuration, Git git) throws Exception {
-        return resolveDynamicVersion(configuration, git, git.getRepository().resolve("HEAD"));
-    }
-
-    String resolveDynamicVersion(NisseConfiguration configuration, Git git, ObjectId head) throws Exception {
+    String resolveDynamicVersion(
+            Map<String, String> properties, NisseConfiguration configuration, Git git, ObjectId head) throws Exception {
         VersionInformation vi;
 
         Optional<String> useVersion =
@@ -532,7 +529,7 @@ public class JGitPropertySource implements PropertySource {
             logger.debug("Using explicit version from useVersion property: {}", useVersion.get());
         } else {
             // First, get version from git history (regular release tags)
-            VersionInformation gitHistoryVersion = getVersionFromGit(configuration, git, head);
+            VersionInformation gitHistoryVersion = getVersionFromGit(properties, configuration, git, head);
             logger.debug("Version from git history: {}", gitHistoryVersion.toString());
 
             // Check if using custom version hint pattern
@@ -549,7 +546,7 @@ public class JGitPropertySource implements PropertySource {
 
                 if (isCustomPattern) {
                     // With custom pattern, version hints take priority (git history only contains matching tags)
-                    vi = mayAddQualifier(configuration, git, hintVersion, head);
+                    vi = mayAddQualifier(properties, configuration, git, hintVersion);
                     logger.debug("Using version hint (custom pattern): {}", versionHint.get());
                 } else {
                     // With default pattern, compare versions
@@ -560,7 +557,7 @@ public class JGitPropertySource implements PropertySource {
 
                     if (isDefaultGitVersion) {
                         // No regular release tags found, use version hint directly
-                        vi = mayAddQualifier(configuration, git, hintVersion, head);
+                        vi = mayAddQualifier(properties, configuration, git, hintVersion);
                         logger.debug("Using version hint (no regular release tags found): {}", versionHint.get());
                     } else {
                         // Compare versions - use hint only if it's higher than git history version
@@ -569,7 +566,7 @@ public class JGitPropertySource implements PropertySource {
 
                         if (hintVersionParsed.compareTo(gitHistoryVersionParsed) > 0) {
                             // Version hint is higher, use it
-                            vi = mayAddQualifier(configuration, git, hintVersion, head);
+                            vi = mayAddQualifier(properties, configuration, git, hintVersion);
                             logger.debug("Using version hint (higher than git history): {}", versionHint.get());
                         } else {
                             // Git history version is higher or equal, use it
@@ -667,12 +664,8 @@ public class JGitPropertySource implements PropertySource {
         return result;
     }
 
-    protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git) throws Exception {
-        return getVersionFromGit(configuration, git, git.getRepository().resolve("HEAD"));
-    }
-
-    protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git, ObjectId head)
-            throws Exception {
+    protected VersionInformation getVersionFromGit(
+            Map<String, String> properties, NisseConfiguration configuration, Git git, ObjectId head) throws Exception {
         try {
             RevCommit lastCommit = getLastCommit(git, head);
             logger.debug("last commit: {}", lastCommit.toString());
@@ -704,12 +697,13 @@ public class JGitPropertySource implements PropertySource {
                         if (appendBuildNumber) {
                             vi.setBuildNumber(count);
                         }
-                        return mayAddQualifier(configuration, git, vi, head);
+                        return mayAddQualifier(properties, configuration, git, vi);
                     }
                 }
                 count++;
             }
-            return mayAddQualifier(configuration, git, new VersionInformation(defaultVersion + "-" + count), head);
+            return mayAddQualifier(
+                    properties, configuration, git, new VersionInformation(defaultVersion + "-" + count));
         } catch (GitAPIException e) {
             throw new Exception("Error reading Git information.", e);
         }
@@ -777,13 +771,14 @@ public class JGitPropertySource implements PropertySource {
     }
 
     protected VersionInformation mayAddQualifier(
-            NisseConfiguration configuration, Git git, VersionInformation vi, ObjectId head) throws GitAPIException {
+            Map<String, String> properties, NisseConfiguration configuration, Git git, VersionInformation vi)
+            throws GitAPIException {
         String qualifier = null;
         boolean appendDirty = Boolean.parseBoolean(configuration
                 .getConfiguration()
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY, DEFAULT_APPEND_DIRTY));
         if (appendDirty) {
-            if (!isClean(git)) {
+            if (!Boolean.parseBoolean(properties.get(JGIT_CLEAN))) {
                 qualifier = appendQualifier(
                         qualifier,
                         configuration
@@ -793,12 +788,13 @@ public class JGitPropertySource implements PropertySource {
         }
         boolean appendBranchName = Boolean.parseBoolean(configuration
                 .getConfiguration()
-                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCHNAME, DEFAULT_APPEND_BRANCH_NAME));
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCH_NAME, DEFAULT_APPEND_BRANCH_NAME));
         if (appendBranchName) {
-            Optional<String> localBranch = localBranch(git, head).map(r -> Repository.shortenRefName(r.getName()));
-            if (localBranch.isPresent()) {
-                qualifier = appendQualifier(qualifier, localBranch.get());
+            String localBranch = properties.get(JGIT_BRANCH_NAME);
+            if (localBranch == null) {
+                throw new IllegalStateException("Branch name configured to be qualifier, but is absent");
             }
+            qualifier = appendQualifier(qualifier, sanitizeBranchName(localBranch));
         }
         boolean appendSnapshot = Boolean.parseBoolean(configuration
                 .getConfiguration()
@@ -938,5 +934,23 @@ public class JGitPropertySource implements PropertySource {
         Pattern hintTagPattern = Pattern.compile("refs/tags/v?" + regexPattern);
 
         return hintTagPattern.matcher(tagName).matches();
+    }
+
+    private static final Pattern UNSAFE_CHARS = Pattern.compile("[^A-Za-z0-9._-]");
+
+    /**
+     * Turns a branch name into a path fragment that is safe on all platforms.
+     */
+    static String sanitizeBranchName(String branchName) {
+        List<String> segments = new ArrayList<>();
+        for (String segment : branchName.split("/")) {
+            String cleaned = UNSAFE_CHARS.matcher(segment).replaceAll("-");
+            segments.add(cleaned);
+        }
+        String result = String.join("-", segments);
+        while (result.endsWith("-")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
     }
 }

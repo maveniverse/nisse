@@ -11,11 +11,18 @@ void exec(String command) {
     proc.waitFor()
     assert proc.exitValue() == 0 : "Command '${command}' returned status: ${proc.exitValue()}"
 }
+void execIgnoreExitCode(String command) {
+    def proc = command.execute(null, basedir)
+    proc.consumeProcessOutput(System.out, System.out)
+    proc.waitFor()
+}
 
 def testFile = new File(basedir, 'test.txt')
 testFile << 'content'
 
 exec('git init')
+// this below is just to ensure same outcome; branch may be already master
+execIgnoreExitCode('git branch -m master')
 exec('git config user.email "you@example.com"')
 exec('git config user.name "Your Name"')
 
