@@ -373,7 +373,7 @@ public class JGitPropertySource implements PropertySource {
                         }
                     }
 
-                    Optional<Ref> localBranch = localBranch(repository, head);
+                    Optional<Ref> localBranch = localBranch(repository, worktreeGitDir, head);
                     localBranch
                             .map(r -> Repository.shortenRefName(r.getName()))
                             .ifPresent(branchName -> result.put(JGIT_BRANCH_NAME, branchName));
@@ -426,6 +426,29 @@ public class JGitPropertySource implements PropertySource {
         return repository.resolve("HEAD");
     }
 
+    /**
+     * Resolves the HEAD ref. In a worktree, HEAD is stored in the worktree-specific git
+     * directory rather than the common directory, so this method reads it from the correct location.
+     *
+     * @param repository the repository (opened against the common dir)
+     * @param worktreeGitDir the worktree-specific git directory, or {@code null} for normal repos
+     */
+    private Ref resolveHeadRef(Repository repository, Path worktreeGitDir) throws IOException {
+        if (worktreeGitDir != null) {
+            Path headFile = worktreeGitDir.resolve("HEAD");
+            String headContent = new String(Files.readAllBytes(headFile), StandardCharsets.UTF_8).trim();
+            if (headContent.startsWith("ref: ")) {
+                String refName = headContent.substring(5);
+                return repository.exactRef(refName);
+                // Worktree HEAD points to a branch that doesn't exist yet
+            } else {
+                return null;
+            }
+        }
+
+        return repository.exactRef("HEAD");
+    }
+
     private RevCommit getLastCommit(Git git, ObjectId head) throws GitAPIException, IOException {
         if (head != null) {
             return git.log().add(head).setMaxCount(1).call().iterator().next();
@@ -438,21 +461,31 @@ public class JGitPropertySource implements PropertySource {
         return git.status().call().isClean();
     }
 
-    private Optional<Ref> localBranch(Repository repository, ObjectId head) throws GitAPIException, IOException {
-        if (head == null) {
-            return Optional.empty();
-        }
-        Set<Ref> refs = repository.getRefDatabase().getTipsWithSha1(head);
-        for (Ref r : refs) {
-            if (r.isSymbolic()) {
-                return Optional.of(r.getTarget());
+    private Optional<Ref> localBranch(Repository repository, Path worktreeGitDir, ObjectId head) throws IOException {
+        if (worktreeGitDir != null) {
+            Ref wtHead = resolveHeadRef(repository, worktreeGitDir);
+            if (wtHead != null) {
+                if (wtHead.isSymbolic()) {
+                    return Optional.of(wtHead.getTarget());
+                }
+                if (!"HEAD".equals(wtHead.getName())) {
+                    return Optional.of(wtHead);
+                }
             }
         }
-        if (refs.size() == 1) {
-            Ref ref = refs.iterator().next();
-            // if "detached" return empty
-            if (!"HEAD".equals(ref.getName())) {
-                return Optional.of(ref);
+        if (head != null) {
+            Set<Ref> refs = repository.getRefDatabase().getTipsWithSha1(head);
+            for (Ref r : refs) {
+                if (r.isSymbolic()) {
+                    return Optional.of(r.getTarget());
+                }
+            }
+            if (refs.size() == 1) {
+                Ref ref = refs.iterator().next();
+                // if "detached" return empty
+                if (!"HEAD".equals(ref.getName())) {
+                    return Optional.of(ref);
+                }
             }
         }
         return Optional.empty();
