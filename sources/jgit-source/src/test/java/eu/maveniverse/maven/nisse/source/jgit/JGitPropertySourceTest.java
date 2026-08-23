@@ -535,6 +535,35 @@ public class JGitPropertySourceTest {
     }
 
     @Test
+    void testBranchNameTwoBranchesSameCommit(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init", "-b", "master");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file1.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file1.txt");
+        exec(mainRepo, "git", "commit", "-m", "file1 commit");
+        Files.write(mainRepo.resolve("file2.txt"), "hello again".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file2.txt");
+        exec(mainRepo, "git", "commit", "-m", "file2 commit");
+
+        // create two branch; but both point to same commit
+        exec(mainRepo, "git", "checkout", "-b", "dev1");
+        exec(mainRepo, "git", "checkout", "-b", "dev2");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertTrue(properties.containsKey("branchName"));
+        assertEquals("dev2", properties.get("branchName"));
+    }
+
+    @Test
     void testVersionHintReachability(@TempDir Path tempDir) throws Exception {
         Path repo = tempDir.resolve("repo");
         Files.createDirectories(repo);

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -40,7 +41,6 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.lib.ConfigConstants;
-import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
@@ -373,7 +373,7 @@ public class JGitPropertySource implements PropertySource {
                         }
                     }
 
-                    Optional<Ref> localBranch = localBranch(git, head);
+                    Optional<Ref> localBranch = localBranch(repository, head);
                     localBranch
                             .map(r -> Repository.shortenRefName(r.getName()))
                             .ifPresent(branchName -> result.put(JGIT_BRANCH_NAME, branchName));
@@ -438,13 +438,24 @@ public class JGitPropertySource implements PropertySource {
         return git.status().call().isClean();
     }
 
-    private Optional<Ref> localBranch(Git git, ObjectId head) throws GitAPIException {
+    private Optional<Ref> localBranch(Repository repository, ObjectId head) throws GitAPIException, IOException {
         if (head == null) {
             return Optional.empty();
         }
-        return git.branchList().call().stream()
-                .filter(ref -> head.equals(ref.getObjectId()) && !Constants.HEAD.equals(ref.getName()))
-                .findFirst();
+        Set<Ref> refs = repository.getRefDatabase().getTipsWithSha1(head);
+        for (Ref r : refs) {
+            if (r.isSymbolic()) {
+                return Optional.of(r.getTarget());
+            }
+        }
+        if (refs.size() == 1) {
+            Ref ref = refs.iterator().next();
+            // if "detached" return empty
+            if (!"HEAD".equals(ref.getName())) {
+                return Optional.of(ref);
+            }
+        }
+        return Optional.empty();
     }
 
     /**
