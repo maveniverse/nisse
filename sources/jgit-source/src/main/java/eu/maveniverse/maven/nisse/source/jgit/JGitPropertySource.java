@@ -785,6 +785,10 @@ public class JGitPropertySource implements PropertySource {
             if (localBranch == null) {
                 throw new IllegalStateException("Branch name configured to be qualifier, but is absent");
             }
+            String sanitizedBranchName = sanitizeBranchName(localBranch);
+            if (sanitizedBranchName == null || sanitizedBranchName.trim().isEmpty()) {
+                throw new IllegalStateException("Branch name configured to be qualifier, but is empty");
+            }
             qualifier = appendQualifier(qualifier, sanitizeBranchName(localBranch));
         }
         boolean appendSnapshot = Boolean.parseBoolean(configuration
