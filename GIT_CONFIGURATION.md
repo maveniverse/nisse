@@ -101,6 +101,12 @@ versions over and over again (the last found tag). Moreover, disabling this feat
 
 If current commit doesn't have a tag, should the count of commits since last tag be appended as build number.
 
+#### `nisse.source.jgit.appendBranchName`
+
+**Default:** `false`
+
+Controls whether to append the name of the actual branch to dynamic versions when the current commit is not tagged.
+
 #### `nisse.source.jgit.appendDirty`
 
 **Default:** `false`

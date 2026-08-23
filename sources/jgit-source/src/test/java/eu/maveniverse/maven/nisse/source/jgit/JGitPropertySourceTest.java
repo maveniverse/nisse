@@ -535,6 +535,88 @@ public class JGitPropertySourceTest {
     }
 
     @Test
+    void testBranchNameTwoBranchesSameCommit(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init", "-b", "master");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file1.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file1.txt");
+        exec(mainRepo, "git", "commit", "-m", "file1 commit");
+        Files.write(mainRepo.resolve("file2.txt"), "hello again".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file2.txt");
+        exec(mainRepo, "git", "commit", "-m", "file2 commit");
+
+        // create two branch; but both point to same commit
+        exec(mainRepo, "git", "checkout", "-b", "dev1");
+        exec(mainRepo, "git", "checkout", "-b", "dev2");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertTrue(properties.containsKey("branchName"));
+        assertEquals("dev2", properties.get("branchName"));
+    }
+
+    @Test
+    void testBranchNameTwoWorktreesSameCommit(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init", "-b", "master");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file.txt");
+        exec(mainRepo, "git", "commit", "-m", "initial commit");
+        exec(mainRepo, "git", "tag", "v1.0.0");
+
+        // Create a worktrees without additional commit
+        Path worktree1 = tempDir.resolve("worktree1");
+        exec(mainRepo, "git", "worktree", "add", worktree1.toString());
+        Path worktree2 = tempDir.resolve("worktree2");
+        exec(mainRepo, "git", "worktree", "add", worktree2.toString());
+
+        String mainCommit = execOutput(mainRepo, "git", "rev-parse", "HEAD").trim();
+        String worktree1Commit =
+                execOutput(worktree1, "git", "rev-parse", "HEAD").trim();
+        String worktree2Commit =
+                execOutput(worktree2, "git", "rev-parse", "HEAD").trim();
+        assertEquals(mainCommit, worktree1Commit, "Worktree should have a different HEAD");
+        assertEquals(mainCommit, worktree2Commit, "Worktree should have a different HEAD");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(worktree1)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertEquals("worktree1", properties.get("branchName"));
+
+        properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(worktree2)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertEquals("worktree2", properties.get("branchName"));
+
+        // check main repo
+        properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertEquals("master", properties.get("branchName"));
+    }
+
+    @Test
     void testVersionHintReachability(@TempDir Path tempDir) throws Exception {
         Path repo = tempDir.resolve("repo");
         Files.createDirectories(repo);
@@ -784,6 +866,15 @@ public class JGitPropertySourceTest {
         // No conditional section
         assertEquals("1.2.3", JGitPropertySource.formatCountingVersion("%M.%m.%p", 1, 2, 3, 0));
         assertEquals("1.2.3", JGitPropertySource.formatCountingVersion("%M.%m.%p", 1, 2, 3, 5));
+    }
+
+    @Test
+    void sanitizeBranchName() {
+        assertEquals("master", JGitPropertySource.sanitizeBranchName("master"));
+        assertEquals("feat-cool-feature-01", JGitPropertySource.sanitizeBranchName("feat/cool-feature-01"));
+        assertEquals(
+                "is-this-valid-branch-name-at-all",
+                JGitPropertySource.sanitizeBranchName("is this valid branch name at all?"));
     }
 
     private static void assertCountingVersion(

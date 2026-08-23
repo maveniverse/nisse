@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -40,7 +41,6 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.lib.ConfigConstants;
-import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
@@ -194,6 +194,13 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_SNAPSHOT = "nisse.source.jgit.appendSnapshot";
 
     private static final String DEFAULT_APPEND_SNAPSHOT = Boolean.TRUE.toString();
+
+    /**
+     * Whether the branch name shall be appended or not.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCH_NAME = "nisse.source.jgit.appendBranchName";
+
+    private static final String DEFAULT_APPEND_BRANCH_NAME = Boolean.FALSE.toString();
 
     /**
      * Whether the DIRTY qualifier shall be appended or not.
@@ -366,7 +373,7 @@ public class JGitPropertySource implements PropertySource {
                         }
                     }
 
-                    Optional<Ref> localBranch = localBranch(git, head);
+                    Optional<Ref> localBranch = localBranch(repository, worktreeGitDir, head);
                     localBranch
                             .map(r -> Repository.shortenRefName(r.getName()))
                             .ifPresent(branchName -> result.put(JGIT_BRANCH_NAME, branchName));
@@ -374,7 +381,7 @@ public class JGitPropertySource implements PropertySource {
                     if (Boolean.parseBoolean(configuration
                             .getConfiguration()
                             .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
-                        result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(configuration, git, head));
+                        result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(result, configuration, git, head));
                     }
                     if (Boolean.parseBoolean(configuration
                             .getConfiguration()
@@ -387,7 +394,7 @@ public class JGitPropertySource implements PropertySource {
             logger.debug("Seems this is not a git checkout; ignoring property source {}", NAME, e);
         } catch (Exception e) {
             logger.error("Exception in JGitPropertySource: {}", e.toString());
-            throw new RuntimeException(e);
+            throw new IllegalStateException(e);
         }
         return Collections.unmodifiableMap(result);
     }
@@ -419,6 +426,29 @@ public class JGitPropertySource implements PropertySource {
         return repository.resolve("HEAD");
     }
 
+    /**
+     * Resolves the HEAD ref. In a worktree, HEAD is stored in the worktree-specific git
+     * directory rather than the common directory, so this method reads it from the correct location.
+     *
+     * @param repository the repository (opened against the common dir)
+     * @param worktreeGitDir the worktree-specific git directory, or {@code null} for normal repos
+     */
+    private Ref resolveHeadRef(Repository repository, Path worktreeGitDir) throws IOException {
+        if (worktreeGitDir != null) {
+            Path headFile = worktreeGitDir.resolve("HEAD");
+            String headContent = new String(Files.readAllBytes(headFile), StandardCharsets.UTF_8).trim();
+            if (headContent.startsWith("ref: ")) {
+                String refName = headContent.substring(5);
+                return repository.exactRef(refName);
+                // Worktree HEAD points to a branch that doesn't exist yet
+            } else {
+                return null;
+            }
+        }
+
+        return repository.exactRef("HEAD");
+    }
+
     private RevCommit getLastCommit(Git git, ObjectId head) throws GitAPIException, IOException {
         if (head != null) {
             return git.log().add(head).setMaxCount(1).call().iterator().next();
@@ -431,13 +461,34 @@ public class JGitPropertySource implements PropertySource {
         return git.status().call().isClean();
     }
 
-    private Optional<Ref> localBranch(Git git, ObjectId head) throws GitAPIException {
-        if (head == null) {
-            return Optional.empty();
+    private Optional<Ref> localBranch(Repository repository, Path worktreeGitDir, ObjectId head) throws IOException {
+        if (worktreeGitDir != null) {
+            Ref wtHead = resolveHeadRef(repository, worktreeGitDir);
+            if (wtHead != null) {
+                if (wtHead.isSymbolic()) {
+                    return Optional.of(wtHead.getTarget());
+                }
+                if (!"HEAD".equals(wtHead.getName())) {
+                    return Optional.of(wtHead);
+                }
+            }
         }
-        return git.branchList().call().stream()
-                .filter(ref -> head.equals(ref.getObjectId()) && !Constants.HEAD.equals(ref.getName()))
-                .findFirst();
+        if (head != null) {
+            Set<Ref> refs = repository.getRefDatabase().getTipsWithSha1(head);
+            for (Ref r : refs) {
+                if (r.isSymbolic()) {
+                    return Optional.of(r.getTarget());
+                }
+            }
+            if (refs.size() == 1) {
+                Ref ref = refs.iterator().next();
+                // if "detached" return empty
+                if (!"HEAD".equals(ref.getName())) {
+                    return Optional.of(ref);
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /**
@@ -510,11 +561,9 @@ public class JGitPropertySource implements PropertySource {
         }
     }
 
-    public String resolveDynamicVersion(NisseConfiguration configuration, Git git) throws Exception {
-        return resolveDynamicVersion(configuration, git, git.getRepository().resolve("HEAD"));
-    }
-
-    String resolveDynamicVersion(NisseConfiguration configuration, Git git, ObjectId head) throws Exception {
+    String resolveDynamicVersion(
+            Map<String, String> properties, NisseConfiguration configuration, Git git, ObjectId head)
+            throws GitAPIException, IOException {
         VersionInformation vi;
 
         Optional<String> useVersion =
@@ -525,7 +574,7 @@ public class JGitPropertySource implements PropertySource {
             logger.debug("Using explicit version from useVersion property: {}", useVersion.get());
         } else {
             // First, get version from git history (regular release tags)
-            VersionInformation gitHistoryVersion = getVersionFromGit(configuration, git, head);
+            VersionInformation gitHistoryVersion = getVersionFromGit(properties, configuration, git, head);
             logger.debug("Version from git history: {}", gitHistoryVersion.toString());
 
             // Check if using custom version hint pattern
@@ -542,7 +591,7 @@ public class JGitPropertySource implements PropertySource {
 
                 if (isCustomPattern) {
                     // With custom pattern, version hints take priority (git history only contains matching tags)
-                    vi = mayAddQualifier(configuration, git, hintVersion);
+                    vi = mayAddQualifier(properties, configuration, hintVersion);
                     logger.debug("Using version hint (custom pattern): {}", versionHint.get());
                 } else {
                     // With default pattern, compare versions
@@ -553,7 +602,7 @@ public class JGitPropertySource implements PropertySource {
 
                     if (isDefaultGitVersion) {
                         // No regular release tags found, use version hint directly
-                        vi = mayAddQualifier(configuration, git, hintVersion);
+                        vi = mayAddQualifier(properties, configuration, hintVersion);
                         logger.debug("Using version hint (no regular release tags found): {}", versionHint.get());
                     } else {
                         // Compare versions - use hint only if it's higher than git history version
@@ -562,7 +611,7 @@ public class JGitPropertySource implements PropertySource {
 
                         if (hintVersionParsed.compareTo(gitHistoryVersionParsed) > 0) {
                             // Version hint is higher, use it
-                            vi = mayAddQualifier(configuration, git, hintVersion);
+                            vi = mayAddQualifier(properties, configuration, hintVersion);
                             logger.debug("Using version hint (higher than git history): {}", versionHint.get());
                         } else {
                             // Git history version is higher or equal, use it
@@ -591,7 +640,8 @@ public class JGitPropertySource implements PropertySource {
      * gradle-git-versioner algorithm: each commit either bumps a version component (and resets
      * lower components and the commit count) or increments the commit count.
      */
-    String resolveCountingVersion(NisseConfiguration configuration, Git git, ObjectId head) throws Exception {
+    String resolveCountingVersion(NisseConfiguration configuration, Git git, ObjectId head)
+            throws GitAPIException, IOException {
         Map<String, String> config = configuration.getConfiguration();
 
         int major = Integer.parseInt(config.getOrDefault(JGIT_CONF_COUNTING_START_MAJOR, DEFAULT_COUNTING_START_MAJOR));
@@ -604,40 +654,36 @@ public class JGitPropertySource implements PropertySource {
 
         int commitCount = 0;
 
-        try {
-            Iterable<RevCommit> commits =
-                    head != null ? git.log().add(head).call() : git.log().call();
-            List<RevCommit> all = new ArrayList<>();
-            for (RevCommit c : commits) {
-                all.add(c);
-            }
-            Collections.reverse(all);
-
-            for (RevCommit c : all) {
-                String message = c.getFullMessage();
-                if (message.contains(matchMajor)) {
-                    major++;
-                    minor = 0;
-                    patch = 0;
-                    commitCount = 0;
-                } else if (message.contains(matchMinor)) {
-                    minor++;
-                    patch = 0;
-                    commitCount = 0;
-                } else if (message.contains(matchPatch)) {
-                    patch++;
-                    commitCount = 0;
-                } else {
-                    commitCount++;
-                }
-            }
-
-            String version = formatCountingVersion(pattern, major, minor, patch, commitCount);
-            logger.debug("counting version resolved to: {}", version);
-            return version;
-        } catch (GitAPIException e) {
-            throw new Exception("Error reading Git information.", e);
+        Iterable<RevCommit> commits =
+                head != null ? git.log().add(head).call() : git.log().call();
+        List<RevCommit> all = new ArrayList<>();
+        for (RevCommit c : commits) {
+            all.add(c);
         }
+        Collections.reverse(all);
+
+        for (RevCommit c : all) {
+            String message = c.getFullMessage();
+            if (message.contains(matchMajor)) {
+                major++;
+                minor = 0;
+                patch = 0;
+                commitCount = 0;
+            } else if (message.contains(matchMinor)) {
+                minor++;
+                patch = 0;
+                commitCount = 0;
+            } else if (message.contains(matchPatch)) {
+                patch++;
+                commitCount = 0;
+            } else {
+                commitCount++;
+            }
+        }
+
+        String version = formatCountingVersion(pattern, major, minor, patch, commitCount);
+        logger.debug("counting version resolved to: {}", version);
+        return version;
     }
 
     /**
@@ -660,52 +706,43 @@ public class JGitPropertySource implements PropertySource {
         return result;
     }
 
-    protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git) throws Exception {
-        return getVersionFromGit(configuration, git, git.getRepository().resolve("HEAD"));
-    }
+    protected VersionInformation getVersionFromGit(
+            Map<String, String> properties, NisseConfiguration configuration, Git git, ObjectId head)
+            throws GitAPIException, IOException {
+        RevCommit lastCommit = getLastCommit(git, head);
+        logger.debug("last commit: {}", lastCommit.toString());
 
-    protected VersionInformation getVersionFromGit(NisseConfiguration configuration, Git git, ObjectId head)
-            throws Exception {
-        try {
-            RevCommit lastCommit = getLastCommit(git, head);
-            logger.debug("last commit: {}", lastCommit.toString());
+        Iterable<RevCommit> commits =
+                head != null ? git.log().add(head).call() : git.log().call();
+        int count = 0;
+        for (RevCommit commit : commits) {
+            Optional<VersionInformation> ovi = getHighestVersionTagForCommit(configuration, git, commit);
 
-            Iterable<RevCommit> commits =
-                    head != null ? git.log().add(head).call() : git.log().call();
-            int count = 0;
-            for (RevCommit commit : commits) {
-                Optional<VersionInformation> ovi = getHighestVersionTagForCommit(configuration, git, commit);
+            if (ovi.isPresent()) {
+                VersionInformation vi = ovi.get();
 
-                if (ovi.isPresent()) {
-                    VersionInformation vi = ovi.get();
-
-                    if (commit.equals(lastCommit)) {
-                        return vi;
-                    } else {
-                        boolean increasePatchVersion = Boolean.parseBoolean(configuration
-                                .getConfiguration()
-                                .getOrDefault(
-                                        JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION,
-                                        DEFAULT_INCREASE_PATCH_VERSION));
-                        if (increasePatchVersion) {
-                            vi.setPatch(vi.getPatch() + 1);
-                        }
-                        boolean appendBuildNumber = Boolean.parseBoolean(configuration
-                                .getConfiguration()
-                                .getOrDefault(
-                                        JGIT_CONF_SYSTEM_PROPERTY_APPEND_BUILD_NUMBER, DEFAULT_APPEND_BUILD_NUMBER));
-                        if (appendBuildNumber) {
-                            vi.setBuildNumber(count);
-                        }
-                        return mayAddQualifier(configuration, git, vi);
+                if (commit.equals(lastCommit)) {
+                    return vi;
+                } else {
+                    boolean increasePatchVersion = Boolean.parseBoolean(configuration
+                            .getConfiguration()
+                            .getOrDefault(
+                                    JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION, DEFAULT_INCREASE_PATCH_VERSION));
+                    if (increasePatchVersion) {
+                        vi.setPatch(vi.getPatch() + 1);
                     }
+                    boolean appendBuildNumber = Boolean.parseBoolean(configuration
+                            .getConfiguration()
+                            .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_BUILD_NUMBER, DEFAULT_APPEND_BUILD_NUMBER));
+                    if (appendBuildNumber) {
+                        vi.setBuildNumber(count);
+                    }
+                    return mayAddQualifier(properties, configuration, vi);
                 }
-                count++;
             }
-            return mayAddQualifier(configuration, git, new VersionInformation(defaultVersion + "-" + count));
-        } catch (GitAPIException e) {
-            throw new Exception("Error reading Git information.", e);
+            count++;
         }
+        return mayAddQualifier(properties, configuration, new VersionInformation(defaultVersion + "-" + count));
     }
 
     private Optional<VersionInformation> getHighestVersionTagForCommit(
@@ -765,24 +802,38 @@ public class JGitPropertySource implements PropertySource {
         try {
             return versionScheme.parseVersion(string);
         } catch (InvalidVersionSpecificationException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException(e);
         }
     }
 
-    protected VersionInformation mayAddQualifier(NisseConfiguration configuration, Git git, VersionInformation vi)
-            throws GitAPIException {
+    protected VersionInformation mayAddQualifier(
+            Map<String, String> properties, NisseConfiguration configuration, VersionInformation vi) {
         String qualifier = null;
         boolean appendDirty = Boolean.parseBoolean(configuration
                 .getConfiguration()
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY, DEFAULT_APPEND_DIRTY));
         if (appendDirty) {
-            if (!isClean(git)) {
+            if (!Boolean.parseBoolean(properties.get(JGIT_CLEAN))) {
                 qualifier = appendQualifier(
                         qualifier,
                         configuration
                                 .getConfiguration()
                                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DIRTY_QUALIFIER, DEFAULT_DIRTY_QUALIFIER));
             }
+        }
+        boolean appendBranchName = Boolean.parseBoolean(configuration
+                .getConfiguration()
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCH_NAME, DEFAULT_APPEND_BRANCH_NAME));
+        if (appendBranchName) {
+            String localBranch = properties.get(JGIT_BRANCH_NAME);
+            if (localBranch == null) {
+                throw new IllegalStateException("Branch name configured to be qualifier, but is absent");
+            }
+            String sanitizedBranchName = sanitizeBranchName(localBranch);
+            if (sanitizedBranchName == null || sanitizedBranchName.trim().isEmpty()) {
+                throw new IllegalStateException("Branch name configured to be qualifier, but is empty");
+            }
+            qualifier = appendQualifier(qualifier, sanitizeBranchName(localBranch));
         }
         boolean appendSnapshot = Boolean.parseBoolean(configuration
                 .getConfiguration()
@@ -816,22 +867,18 @@ public class JGitPropertySource implements PropertySource {
      * @param configuration The Nisse configuration
      * @param git The git repository
      * @return Optional version string extracted from hint tags
-     * @throws Exception if git operations fail
+     * @throws GitAPIException if git operations fail
      */
     protected Optional<String> findVersionHint(NisseConfiguration configuration, Git git, ObjectId head)
-            throws Exception {
-        try {
-            String hintPattern = configuration
-                    .getConfiguration()
-                    .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN, DEFAULT_VERSION_HINT_PATTERN);
+            throws GitAPIException {
+        String hintPattern = configuration
+                .getConfiguration()
+                .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN, DEFAULT_VERSION_HINT_PATTERN);
 
-            List<String> hintVersions = findVersionHintTags(git, hintPattern, head);
-            logger.debug("Found version hint tags: {}", hintVersions);
+        List<String> hintVersions = findVersionHintTags(git, hintPattern, head);
+        logger.debug("Found version hint tags: {}", hintVersions);
 
-            return findHighestVersionFromHints(hintVersions);
-        } catch (GitAPIException e) {
-            throw new Exception("Error reading version hint tags from Git.", e);
-        }
+        return findHighestVersionFromHints(hintVersions);
     }
 
     /**
@@ -922,5 +969,23 @@ public class JGitPropertySource implements PropertySource {
         Pattern hintTagPattern = Pattern.compile("refs/tags/v?" + regexPattern);
 
         return hintTagPattern.matcher(tagName).matches();
+    }
+
+    private static final Pattern UNSAFE_CHARS = Pattern.compile("[^A-Za-z0-9._-]");
+
+    /**
+     * Turns a branch name into a path fragment that is safe on all platforms.
+     */
+    static String sanitizeBranchName(String branchName) {
+        List<String> segments = new ArrayList<>();
+        for (String segment : branchName.split("/")) {
+            String cleaned = UNSAFE_CHARS.matcher(segment).replaceAll("-");
+            segments.add(cleaned);
+        }
+        String result = String.join("-", segments);
+        while (result.endsWith("-")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
     }
 }
