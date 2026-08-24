@@ -125,6 +125,7 @@ nisseConfig {
         // --- dynamic version (tag-based) ---
         dynamicVersion = true                // default: false
         increasePatchVersion = true          // default: true
+        conventionalCommits = false          // default: false
         appendBuildNumber = true             // default: true
         appendSnapshot = true                // default: true
         appendDirty = false                  // default: false
@@ -168,6 +169,11 @@ v1.2.3  →  on tag: 1.2.3
 
 Control the output with `appendSnapshot`, `appendBuildNumber`, `increasePatchVersion`,
 `appendDirty`, and `dirtyQualifier`.
+
+Set `conventionalCommits = true` to take the increase from
+[Conventional Commits](https://www.conventionalcommits.org/) since the last tag instead of always
+increasing the patch: `feat:` increases the minor, `feat!:` or a `BREAKING CHANGE:` footer increases
+the major, anything else increases the patch. It supersedes `increasePatchVersion` when enabled.
 
 ## Counting Version
 

@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -875,6 +876,117 @@ public class JGitPropertySourceTest {
         assertEquals(
                 "is-this-valid-branch-name-at-all",
                 JGitPropertySource.sanitizeBranchName("is this valid branch name at all?"));
+    }
+
+    @Test
+    void testConventionalCommitsBumpFromMessages() {
+        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom("fix: a bug"));
+        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom("chore(deps): bump something"));
+        assertEquals(JGitPropertySource.Bump.MINOR, JGitPropertySource.bumpFrom("feat: a feature"));
+        assertEquals(JGitPropertySource.Bump.MINOR, JGitPropertySource.bumpFrom("feat(core): a scoped feature"));
+        assertEquals(JGitPropertySource.Bump.MAJOR, JGitPropertySource.bumpFrom("feat!: breaking"));
+        assertEquals(JGitPropertySource.Bump.MAJOR, JGitPropertySource.bumpFrom("fix(api)!: breaking"));
+        assertEquals(
+                JGitPropertySource.Bump.MAJOR,
+                JGitPropertySource.bumpFrom("feat: something\n\nBREAKING CHANGE: it moved"));
+        assertEquals(
+                JGitPropertySource.Bump.MAJOR,
+                JGitPropertySource.bumpFrom("feat: something\n\nBREAKING-CHANGE: it moved"));
+
+        // not Conventional Commits at all: still a patch, never less than increasePatchVersion gave
+        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom("just a message"));
+        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom(""));
+
+        // a type merely starting with "feat" is not "feat"
+        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom("feature: not the feat type"));
+
+        // "BREAKING CHANGE" must be a footer, not prose
+        assertEquals(
+                JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom("fix: mentions BREAKING CHANGE: inline"));
+
+        // the highest wins
+        assertEquals(
+                JGitPropertySource.Bump.MAJOR,
+                JGitPropertySource.bumpFrom(Arrays.asList("fix: a", "feat: b", "feat!: c")));
+        assertEquals(JGitPropertySource.Bump.MINOR, JGitPropertySource.bumpFrom(Arrays.asList("fix: a", "feat: b")));
+        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom(Collections.emptyList()));
+    }
+
+    @Test
+    void testConventionalCommitsVersion(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "initial");
+        exec(repo, "git", "tag", "1.2.3");
+
+        // on the tag itself: the tag is the version, untouched
+        assertDynamicVersion("1.2.3", source, repo, userProps);
+
+        // fix: -> patch
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix: a bug");
+        assertDynamicVersion("1.2.4", source, repo, userProps);
+
+        // feat: outranks the fix -> minor, patch reset
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat: a feature");
+        assertDynamicVersion("1.3.0", source, repo, userProps);
+
+        // a breaking change outranks both -> major, minor and patch reset
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: a breaking feature");
+        assertDynamicVersion("2.0.0", source, repo, userProps);
+
+        // a later ordinary commit does not lower the increment
+        exec(repo, "git", "commit", "--allow-empty", "-m", "docs: tidy up");
+        assertDynamicVersion("2.0.0", source, repo, userProps);
+    }
+
+    @Test
+    void testConventionalCommitsDisabledKeepsPatchBehaviour(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "initial");
+        exec(repo, "git", "tag", "1.2.3");
+
+        // the default is unchanged: a breaking feature still only increases the patch version
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: a breaking feature");
+        assertDynamicVersion("1.2.4", source, repo, userProps);
+    }
+
+    private static void assertDynamicVersion(
+            String expected, JGitPropertySource source, Path repo, Map<String, String> userProps) throws Exception {
+        Map<String, String> properties = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+        String value = properties.get("dynamicVersion");
+        assertNotNull(value, "dynamicVersion should be set");
+        assertEquals(expected, value);
     }
 
     private static void assertCountingVersion(

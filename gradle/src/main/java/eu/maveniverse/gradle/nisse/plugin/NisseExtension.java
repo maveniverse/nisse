@@ -103,6 +103,9 @@ public abstract class NisseExtension {
         /** Whether to increase the patch version. */
         public abstract Property<Boolean> getIncreasePatchVersion();
 
+        /** Whether to derive the version increase from Conventional Commits since the last version tag. */
+        public abstract Property<Boolean> getConventionalCommits();
+
         /** Whether to append the build number. */
         public abstract Property<Boolean> getAppendBuildNumber();
 
@@ -154,6 +157,7 @@ public abstract class NisseExtension {
             setIfPresent(props, "nisse.source.jgit.countingVersion", getCountingVersion());
             setIfPresent(props, "nisse.source.jgit.shortCommitIdLength", getShortCommitIdLength());
             setIfPresent(props, "nisse.source.jgit.increasePatchVersion", getIncreasePatchVersion());
+            setIfPresent(props, "nisse.source.jgit.conventionalCommits", getConventionalCommits());
             setIfPresent(props, "nisse.source.jgit.appendBuildNumber", getAppendBuildNumber());
             setIfPresent(props, "nisse.source.jgit.appendSnapshot", getAppendSnapshot());
             setIfPresent(props, "nisse.source.jgit.appendDirty", getAppendDirty());

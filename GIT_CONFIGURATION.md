@@ -95,6 +95,31 @@ If current commit doesn't have a tag, should the patch version be incremented or
 versions over and over again (the last found tag). Moreover, disabling this feature, but keeping
 `nisse.source.jgit.appendSnapshot` enabled, will produce "backward", hence broken Maven versions!
 
+#### `nisse.source.jgit.conventionalCommits`
+
+**Default:** `false`
+
+Set to `true` to derive the version increase from
+[Conventional Commits](https://www.conventionalcommits.org/) in the commits made since the last version tag,
+instead of always increasing the patch version.
+
+The highest increase among those commits wins:
+
+| Commit | Increase | `1.2.3` becomes |
+| --- | --- | --- |
+| `fix: ...`, `chore: ...`, or any other type | patch | `1.2.4` |
+| `feat: ...` | minor, patch reset | `1.3.0` |
+| `feat!: ...`, `fix(api)!: ...`, or a `BREAKING CHANGE:` footer | major, minor and patch reset | `2.0.0` |
+
+A commit that is not a Conventional Commit contributes a patch increase, so enabling this can never produce a
+*smaller* increase than `nisse.source.jgit.increasePatchVersion` would have.
+
+When enabled, this **supersedes** `nisse.source.jgit.increasePatchVersion`, which is then not consulted.
+
+Note this differs from `nisse.source.jgit.countingVersion`: that walks the *entire* history from a starting
+version and counts directives such as `[minor]`, whereas this reads Conventional Commit types and applies a
+single increase to the *last version tag*.
+
 #### `nisse.source.jgit.appendBuildNumber`
 
 **Default:** `true`

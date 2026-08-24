@@ -19,6 +19,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -182,6 +183,24 @@ public class JGitPropertySource implements PropertySource {
     private static final String DEFAULT_INCREASE_PATCH_VERSION = Boolean.TRUE.toString();
 
     /**
+     * Set to {@code true} to derive the version increment from
+     * <a href="https://www.conventionalcommits.org/">Conventional Commits</a> in the commits made since the last
+     * version tag, instead of always increasing the patch version.
+     * <p>
+     * The highest increment wins: a breaking change increases the major version (resetting minor and patch), a
+     * {@code feat} increases the minor version (resetting patch), and anything else increases the patch version.
+     * A commit that is not a Conventional Commit contributes a patch increment, so enabling this can never
+     * produce a <em>smaller</em> increment than {@link #JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION} would.
+     * <p>
+     * When enabled this <strong>supersedes</strong> {@link #JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION},
+     * which is then not consulted.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_CONVENTIONAL_COMMITS =
+            "nisse.source.jgit.conventionalCommits";
+
+    private static final String DEFAULT_CONVENTIONAL_COMMITS = Boolean.FALSE.toString();
+
+    /**
      * Whether the buildNumber shall be appended or not.
      */
     private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_BUILD_NUMBER = "nisse.source.jgit.appendBuildNumber";
@@ -252,6 +271,18 @@ public class JGitPropertySource implements PropertySource {
      * Pattern for standard semantic versions, with an optional {@code "v"} prefix.
      */
     protected static final Pattern TAG_VERSION_PATTERN = Pattern.compile("refs/tags/v?((\\d+\\.\\d+\\.\\d+)(.*))");
+
+    /**
+     * A Conventional Commits subject line: {@code type(optional scope)!: description}, where {@code !} marks a
+     * breaking change.
+     */
+    private static final Pattern CONVENTIONAL_COMMIT_SUBJECT =
+            Pattern.compile("^(?<type>[a-zA-Z]+)(\\([^)]*\\))?(?<breaking>!)?:\\s");
+
+    /**
+     * The Conventional Commits breaking change footer. The specification allows both spellings.
+     */
+    private static final Pattern BREAKING_CHANGE_FOOTER = Pattern.compile("^BREAKING[ -]CHANGE:\\s", Pattern.MULTILINE);
 
     /**
      * Matches the credential-bearing userinfo (user, or user:password) in an HTTP(S) remote URL,
@@ -715,6 +746,7 @@ public class JGitPropertySource implements PropertySource {
         Iterable<RevCommit> commits =
                 head != null ? git.log().add(head).call() : git.log().call();
         int count = 0;
+        List<String> messagesSinceTag = new ArrayList<>();
         for (RevCommit commit : commits) {
             Optional<VersionInformation> ovi = getHighestVersionTagForCommit(configuration, git, commit);
 
@@ -724,12 +756,21 @@ public class JGitPropertySource implements PropertySource {
                 if (commit.equals(lastCommit)) {
                     return vi;
                 } else {
-                    boolean increasePatchVersion = Boolean.parseBoolean(configuration
+                    boolean conventionalCommits = Boolean.parseBoolean(configuration
                             .getConfiguration()
                             .getOrDefault(
-                                    JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION, DEFAULT_INCREASE_PATCH_VERSION));
-                    if (increasePatchVersion) {
-                        vi.setPatch(vi.getPatch() + 1);
+                                    JGIT_CONF_SYSTEM_PROPERTY_CONVENTIONAL_COMMITS, DEFAULT_CONVENTIONAL_COMMITS));
+                    if (conventionalCommits) {
+                        increaseVersion(vi, bumpFrom(messagesSinceTag));
+                    } else {
+                        boolean increasePatchVersion = Boolean.parseBoolean(configuration
+                                .getConfiguration()
+                                .getOrDefault(
+                                        JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION,
+                                        DEFAULT_INCREASE_PATCH_VERSION));
+                        if (increasePatchVersion) {
+                            vi.setPatch(vi.getPatch() + 1);
+                        }
                     }
                     boolean appendBuildNumber = Boolean.parseBoolean(configuration
                             .getConfiguration()
@@ -740,9 +781,81 @@ public class JGitPropertySource implements PropertySource {
                     return mayAddQualifier(properties, configuration, vi);
                 }
             }
+            messagesSinceTag.add(commit.getFullMessage());
             count++;
         }
         return mayAddQualifier(properties, configuration, new VersionInformation(defaultVersion + "-" + count));
+    }
+
+    /**
+     * The version component a set of commits calls for, ordered so that the highest wins.
+     */
+    enum Bump {
+        PATCH,
+        MINOR,
+        MAJOR
+    }
+
+    /**
+     * The highest increment called for by the given full commit messages, per Conventional Commits.
+     * <p>
+     * A message that is not a Conventional Commit still contributes {@link Bump#PATCH}: this mode replaces the
+     * unconditional patch increment, so it must never increment less than that did.
+     */
+    static Bump bumpFrom(Collection<String> fullMessages) {
+        Bump highest = Bump.PATCH;
+        for (String message : fullMessages) {
+            Bump bump = bumpFrom(message);
+            if (bump.compareTo(highest) > 0) {
+                highest = bump;
+            }
+            if (highest == Bump.MAJOR) {
+                return highest;
+            }
+        }
+        return highest;
+    }
+
+    /**
+     * The increment called for by a single full commit message (subject and body).
+     */
+    static Bump bumpFrom(String fullMessage) {
+        if (fullMessage == null || fullMessage.isEmpty()) {
+            return Bump.PATCH;
+        }
+        if (BREAKING_CHANGE_FOOTER.matcher(fullMessage).find()) {
+            return Bump.MAJOR;
+        }
+        String subject = fullMessage.split("\\R", 2)[0];
+        Matcher matcher = CONVENTIONAL_COMMIT_SUBJECT.matcher(subject);
+        if (!matcher.find()) {
+            return Bump.PATCH;
+        }
+        if (matcher.group("breaking") != null) {
+            return Bump.MAJOR;
+        }
+        return "feat".equalsIgnoreCase(matcher.group("type")) ? Bump.MINOR : Bump.PATCH;
+    }
+
+    /**
+     * Applies an increment, resetting the components below it as semantic versioning requires.
+     */
+    static void increaseVersion(VersionInformation vi, Bump bump) {
+        switch (bump) {
+            case MAJOR:
+                vi.setMajor(vi.getMajor() + 1);
+                vi.setMinor(0);
+                vi.setPatch(0);
+                break;
+            case MINOR:
+                vi.setMinor(vi.getMinor() + 1);
+                vi.setPatch(0);
+                break;
+            case PATCH:
+            default:
+                vi.setPatch(vi.getPatch() + 1);
+                break;
+        }
     }
 
     private Optional<VersionInformation> getHighestVersionTagForCommit(
