@@ -900,16 +900,27 @@ public class JGitPropertySourceTest {
         // a type merely starting with "feat" is not "feat"
         assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom("feature: not the feat type"));
 
-        // "BREAKING CHANGE" must be a footer, not prose
+        // "BREAKING CHANGE" counts only as a footer in the trailer block, never as prose
         assertEquals(
                 JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom("fix: mentions BREAKING CHANGE: inline"));
+        assertEquals(
+                JGitPropertySource.Bump.PATCH,
+                JGitPropertySource.bumpFrom("fix: a bug\n\nBREAKING CHANGE: none, quoting a changelog\n\nreally"));
+        // an ordinary commit has no footers at all — this is the body git revert copies verbatim
+        assertEquals(
+                JGitPropertySource.Bump.PATCH,
+                JGitPropertySource.bumpFrom(
+                        "Revert \"feat: x\"\n\nThis reverts commit abc.\n\nBREAKING CHANGE: moved"));
+        // the specification requires a non-empty scope and a space after the colon
+        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom("feat(): empty scope"));
 
         // the highest wins
         assertEquals(
                 JGitPropertySource.Bump.MAJOR,
-                JGitPropertySource.bumpFrom(Arrays.asList("fix: a", "feat: b", "feat!: c")));
-        assertEquals(JGitPropertySource.Bump.MINOR, JGitPropertySource.bumpFrom(Arrays.asList("fix: a", "feat: b")));
-        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom(Collections.emptyList()));
+                JGitPropertySource.highestBumpFrom(Arrays.asList("fix: a", "feat: b", "feat!: c")));
+        assertEquals(
+                JGitPropertySource.Bump.MINOR, JGitPropertySource.highestBumpFrom(Arrays.asList("fix: a", "feat: b")));
+        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.highestBumpFrom(Collections.emptyList()));
     }
 
     @Test
@@ -927,10 +938,12 @@ public class JGitPropertySourceTest {
         exec(repo, "git", "init", "-b", "master");
         exec(repo, "git", "config", "user.email", "test@test.com");
         exec(repo, "git", "config", "user.name", "Test");
+        exec(repo, "git", "config", "commit.gpgsign", "false");
 
         Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
         exec(repo, "git", "add", "file.txt");
-        exec(repo, "git", "commit", "-m", "initial");
+        // The tagged commit's own message is load-bearing: were it counted, this would major-bump.
+        exec(repo, "git", "commit", "-m", "feat!: the release commit itself");
         exec(repo, "git", "tag", "1.2.3");
 
         // on the tag itself: the tag is the version, untouched
@@ -967,15 +980,138 @@ public class JGitPropertySourceTest {
         exec(repo, "git", "init", "-b", "master");
         exec(repo, "git", "config", "user.email", "test@test.com");
         exec(repo, "git", "config", "user.name", "Test");
+        exec(repo, "git", "config", "commit.gpgsign", "false");
 
         Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
         exec(repo, "git", "add", "file.txt");
-        exec(repo, "git", "commit", "-m", "initial");
+        // The tagged commit's own message is load-bearing: were it counted, this would major-bump.
+        exec(repo, "git", "commit", "-m", "feat!: the release commit itself");
         exec(repo, "git", "tag", "1.2.3");
 
         // the default is unchanged: a breaking feature still only increases the patch version
         exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: a breaking feature");
         assertDynamicVersion("1.2.4", source, repo, userProps);
+    }
+
+    @Test
+    void testConventionalCommitsAcrossAMergeOfABranchCutBeforeTheTag(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+
+        // a branch cut BEFORE the release, carrying the feature
+        exec(repo, "git", "checkout", "-b", "side");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat: side feature");
+
+        // the release happens on master afterwards, so the side commit is older than the tag
+        exec(repo, "git", "checkout", "master");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: release");
+        exec(repo, "git", "tag", "1.2.3");
+
+        // ...and only then is the branch merged
+        exec(repo, "git", "merge", "--no-ff", "-m", "chore: merge side", "side");
+
+        // The feature is in tag..HEAD, so it counts — even though its commit date precedes the tag.
+        assertDynamicVersion("1.3.0", source, repo, userProps);
+    }
+
+    @Test
+    void testConventionalCommitsSupersedesIncreasePatchVersion(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.increasePatchVersion", "false");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.2.3");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat: a feature");
+
+        // increasePatchVersion=false would have pinned this to 1.2.3; conventionalCommits supersedes it
+        assertDynamicVersion("1.3.0", source, repo, userProps);
+    }
+
+    @Test
+    void testConventionalCommitsWithBuildNumberAndNoReleaseTag(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.2.3");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat: a feature");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "docs: more");
+
+        // the build number rides along with a minor increase exactly as it does with a patch one
+        assertDynamicVersion("1.3.0-2", source, repo, userProps);
+
+        // with no release tag at all the fallback stands, whatever the commits say
+        Path untagged = newRepo(tempDir.resolve("untagged"));
+        exec(untagged, "git", "commit", "--allow-empty", "-m", "feat!: breaking, but nothing to increase from");
+        assertDynamicVersion("0.1.0-1", source, untagged, userProps);
+    }
+
+    @Test
+    void testConventionalCommitsDropsAQualifierItHasOutgrown(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.2.3-rc1");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: breaking");
+
+        // 2.0.0-rc1 would claim to be a candidate for a release that never had one
+        assertDynamicVersion("2.0.0", source, repo, userProps);
+    }
+
+    @Test
+    void testConventionalCommitsMinorOnZeroZeroXIsNotMistakenForNoReleaseTag(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "0.0.5");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat: a feature");
+
+        // A feat on a 0.0.x tag lands on exactly 0.1.0 — which is also the no-tag fallback value.
+        assertDynamicVersion("0.1.0", source, repo, userProps);
+
+        // A lower version hint must NOT win. It would if "no release tag found" were inferred from the value,
+        // and the build would go backwards from 0.1.0 to 0.0.6.
+        exec(repo, "git", "tag", "0.0.6-SNAPSHOT");
+        assertDynamicVersion("0.1.0", source, repo, userProps);
+    }
+
+    private static Path newRepo(Path dir) throws Exception {
+        Files.createDirectories(dir);
+        exec(dir, "git", "init", "-b", "master");
+        exec(dir, "git", "config", "user.email", "test@test.com");
+        exec(dir, "git", "config", "user.name", "Test");
+        // never inherit the developer's signing configuration
+        exec(dir, "git", "config", "commit.gpgsign", "false");
+        return dir;
     }
 
     private static void assertDynamicVersion(

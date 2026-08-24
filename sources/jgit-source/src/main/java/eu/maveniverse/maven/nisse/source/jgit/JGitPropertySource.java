@@ -42,6 +42,7 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.lib.ConfigConstants;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
@@ -183,17 +184,9 @@ public class JGitPropertySource implements PropertySource {
     private static final String DEFAULT_INCREASE_PATCH_VERSION = Boolean.TRUE.toString();
 
     /**
-     * Set to {@code true} to derive the version increment from
-     * <a href="https://www.conventionalcommits.org/">Conventional Commits</a> in the commits made since the last
-     * version tag, instead of always increasing the patch version.
-     * <p>
-     * The highest increment wins: a breaking change increases the major version (resetting minor and patch), a
-     * {@code feat} increases the minor version (resetting patch), and anything else increases the patch version.
-     * A commit that is not a Conventional Commit contributes a patch increment, so enabling this can never
-     * produce a <em>smaller</em> increment than {@link #JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION} would.
-     * <p>
-     * When enabled this <strong>supersedes</strong> {@link #JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION},
-     * which is then not consulted.
+     * Set to {@code true} to derive the version increase from Conventional Commits made since the last version
+     * tag, instead of always increasing the patch version. Supersedes
+     * {@link #JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION}. See {@code GIT_CONFIGURATION.md}.
      */
     private static final String JGIT_CONF_SYSTEM_PROPERTY_CONVENTIONAL_COMMITS =
             "nisse.source.jgit.conventionalCommits";
@@ -277,12 +270,13 @@ public class JGitPropertySource implements PropertySource {
      * breaking change.
      */
     private static final Pattern CONVENTIONAL_COMMIT_SUBJECT =
-            Pattern.compile("^(?<type>[a-zA-Z]+)(\\([^)]*\\))?(?<breaking>!)?:\\s");
+            Pattern.compile("(?<type>[a-zA-Z]+)(\\([^)]+\\))?(?<breaking>!)?:\\s");
 
     /**
      * The Conventional Commits breaking change footer. The specification allows both spellings.
      */
-    private static final Pattern BREAKING_CHANGE_FOOTER = Pattern.compile("^BREAKING[ -]CHANGE:\\s", Pattern.MULTILINE);
+    private static final Pattern BREAKING_CHANGE_FOOTER =
+            Pattern.compile("^BREAKING[ -]CHANGE: \\S", Pattern.MULTILINE);
 
     /**
      * Matches the credential-bearing userinfo (user, or user:password) in an HTTP(S) remote URL,
@@ -605,7 +599,8 @@ public class JGitPropertySource implements PropertySource {
             logger.debug("Using explicit version from useVersion property: {}", useVersion.get());
         } else {
             // First, get version from git history (regular release tags)
-            VersionInformation gitHistoryVersion = getVersionFromGit(properties, configuration, git, head);
+            GitVersion gitVersion = resolveVersionFromGit(properties, configuration, git, head);
+            VersionInformation gitHistoryVersion = gitVersion.getVersion();
             logger.debug("Version from git history: {}", gitHistoryVersion.toString());
 
             // Check if using custom version hint pattern
@@ -626,10 +621,9 @@ public class JGitPropertySource implements PropertySource {
                     logger.debug("Using version hint (custom pattern): {}", versionHint.get());
                 } else {
                     // With default pattern, compare versions
-                    // Check if git history version is the default (meaning no regular release tags found)
-                    boolean isDefaultGitVersion = gitHistoryVersion.getMajor() == 0
-                            && gitHistoryVersion.getMinor() == 1
-                            && gitHistoryVersion.getPatch() == 0;
+                    // Whether a regular release tag was found at all. Reported by the walk rather than
+                    // inferred from the value: 0.1.0 is also what increasing a 0.0.x tag's minor produces.
+                    boolean isDefaultGitVersion = !gitVersion.isFromReleaseTag();
 
                     if (isDefaultGitVersion) {
                         // No regular release tags found, use version hint directly
@@ -740,13 +734,21 @@ public class JGitPropertySource implements PropertySource {
     protected VersionInformation getVersionFromGit(
             Map<String, String> properties, NisseConfiguration configuration, Git git, ObjectId head)
             throws GitAPIException, IOException {
+        return resolveVersionFromGit(properties, configuration, git, head).getVersion();
+    }
+
+    /**
+     * As {@link #getVersionFromGit}, but also reporting whether a release tag was found at all.
+     */
+    protected GitVersion resolveVersionFromGit(
+            Map<String, String> properties, NisseConfiguration configuration, Git git, ObjectId head)
+            throws GitAPIException, IOException {
         RevCommit lastCommit = getLastCommit(git, head);
         logger.debug("last commit: {}", lastCommit.toString());
 
         Iterable<RevCommit> commits =
                 head != null ? git.log().add(head).call() : git.log().call();
         int count = 0;
-        List<String> messagesSinceTag = new ArrayList<>();
         for (RevCommit commit : commits) {
             Optional<VersionInformation> ovi = getHighestVersionTagForCommit(configuration, git, commit);
 
@@ -754,14 +756,14 @@ public class JGitPropertySource implements PropertySource {
                 VersionInformation vi = ovi.get();
 
                 if (commit.equals(lastCommit)) {
-                    return vi;
+                    return new GitVersion(vi, true);
                 } else {
                     boolean conventionalCommits = Boolean.parseBoolean(configuration
                             .getConfiguration()
                             .getOrDefault(
                                     JGIT_CONF_SYSTEM_PROPERTY_CONVENTIONAL_COMMITS, DEFAULT_CONVENTIONAL_COMMITS));
                     if (conventionalCommits) {
-                        increaseVersion(vi, bumpFrom(messagesSinceTag));
+                        increaseVersion(vi, highestBumpFrom(messagesSince(git, head, commit)));
                     } else {
                         boolean increasePatchVersion = Boolean.parseBoolean(configuration
                                 .getConfiguration()
@@ -778,13 +780,56 @@ public class JGitPropertySource implements PropertySource {
                     if (appendBuildNumber) {
                         vi.setBuildNumber(count);
                     }
-                    return mayAddQualifier(properties, configuration, vi);
+                    return new GitVersion(mayAddQualifier(properties, configuration, vi), true);
                 }
             }
-            messagesSinceTag.add(commit.getFullMessage());
             count++;
         }
-        return mayAddQualifier(properties, configuration, new VersionInformation(defaultVersion + "-" + count));
+        return new GitVersion(
+                mayAddQualifier(properties, configuration, new VersionInformation(defaultVersion + "-" + count)),
+                false);
+    }
+
+    /**
+     * The full messages of the commits reachable from {@code head} but not from {@code tagged}: the range
+     * {@code tagged..head}.
+     *
+     * <p>Asking git for the range explicitly matters. The walk that finds the tag is ordered by commit date, so a
+     * branch cut before the tag and merged after it is reached only <em>after</em> the tagged commit, and would
+     * otherwise be missed. Reachability, not date, is what "since the last release" means. The tagged commit
+     * itself is excluded by construction.
+     */
+    private List<String> messagesSince(Git git, ObjectId head, RevCommit tagged) throws GitAPIException, IOException {
+        ObjectId until = head != null ? head : git.getRepository().resolve(Constants.HEAD);
+        List<String> messages = new ArrayList<>();
+        for (RevCommit commit : git.log().add(until).not(tagged.getId()).call()) {
+            messages.add(commit.getFullMessage());
+        }
+        return messages;
+    }
+
+    /**
+     * A version resolved from git history, and whether it came from a release tag at all. That cannot be
+     * recognised from the value: {@link #defaultVersion} is also what increasing a {@code 0.0.x} tag's minor
+     * produces.
+     */
+    protected static final class GitVersion {
+        private final VersionInformation version;
+
+        private final boolean fromReleaseTag;
+
+        GitVersion(VersionInformation version, boolean fromReleaseTag) {
+            this.version = version;
+            this.fromReleaseTag = fromReleaseTag;
+        }
+
+        public VersionInformation getVersion() {
+            return version;
+        }
+
+        public boolean isFromReleaseTag() {
+            return fromReleaseTag;
+        }
     }
 
     /**
@@ -797,12 +842,12 @@ public class JGitPropertySource implements PropertySource {
     }
 
     /**
-     * The highest increment called for by the given full commit messages, per Conventional Commits.
+     * The highest increase called for by the given full commit messages, per Conventional Commits.
      * <p>
      * A message that is not a Conventional Commit still contributes {@link Bump#PATCH}: this mode replaces the
      * unconditional patch increment, so it must never increment less than that did.
      */
-    static Bump bumpFrom(Collection<String> fullMessages) {
+    static Bump highestBumpFrom(Collection<String> fullMessages) {
         Bump highest = Bump.PATCH;
         for (String message : fullMessages) {
             Bump bump = bumpFrom(message);
@@ -823,38 +868,48 @@ public class JGitPropertySource implements PropertySource {
         if (fullMessage == null || fullMessage.isEmpty()) {
             return Bump.PATCH;
         }
-        if (BREAKING_CHANGE_FOOTER.matcher(fullMessage).find()) {
-            return Bump.MAJOR;
-        }
-        String subject = fullMessage.split("\\R", 2)[0];
+        int newline = fullMessage.indexOf('\n');
+        String subject = newline < 0 ? fullMessage : fullMessage.substring(0, newline);
         Matcher matcher = CONVENTIONAL_COMMIT_SUBJECT.matcher(subject);
-        if (!matcher.find()) {
+        if (!matcher.lookingAt()) {
+            // Not a Conventional Commit, so it has no footers either. A BREAKING CHANGE line in the body of an
+            // ordinary commit is prose: a quoted changelog, or the body git revert copies verbatim.
             return Bump.PATCH;
         }
-        if (matcher.group("breaking") != null) {
+        if (matcher.group("breaking") != null || hasBreakingFooter(fullMessage)) {
             return Bump.MAJOR;
         }
         return "feat".equalsIgnoreCase(matcher.group("type")) ? Bump.MINOR : Bump.PATCH;
     }
 
     /**
+     * Whether the message's trailer block declares a breaking change. Only the last paragraph is searched, which
+     * is where the specification puts footers; the same words earlier in the body are prose.
+     */
+    private static boolean hasBreakingFooter(String fullMessage) {
+        int lastBlankLine = fullMessage.lastIndexOf("\n\n");
+        return lastBlankLine >= 0
+                && BREAKING_CHANGE_FOOTER
+                        .matcher(fullMessage.substring(lastBlankLine + 2))
+                        .find();
+    }
+
+    /**
      * Applies an increment, resetting the components below it as semantic versioning requires.
      */
     static void increaseVersion(VersionInformation vi, Bump bump) {
-        switch (bump) {
-            case MAJOR:
-                vi.setMajor(vi.getMajor() + 1);
-                vi.setMinor(0);
-                vi.setPatch(0);
-                break;
-            case MINOR:
-                vi.setMinor(vi.getMinor() + 1);
-                vi.setPatch(0);
-                break;
-            case PATCH:
-            default:
-                vi.setPatch(vi.getPatch() + 1);
-                break;
+        if (bump == Bump.MAJOR) {
+            vi.setMajor(vi.getMajor() + 1);
+            vi.setMinor(0);
+            vi.setPatch(0);
+            // 1.2.3-rc1 becoming 2.0.0-rc1 would claim to be a candidate for a release that never had one.
+            vi.setQualifier(null);
+        } else if (bump == Bump.MINOR) {
+            vi.setMinor(vi.getMinor() + 1);
+            vi.setPatch(0);
+            vi.setQualifier(null);
+        } else {
+            vi.setPatch(vi.getPatch() + 1);
         }
     }
 

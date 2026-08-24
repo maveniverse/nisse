@@ -171,9 +171,11 @@ Control the output with `appendSnapshot`, `appendBuildNumber`, `increasePatchVer
 `appendDirty`, and `dirtyQualifier`.
 
 Set `conventionalCommits = true` to take the increase from
-[Conventional Commits](https://www.conventionalcommits.org/) since the last tag instead of always
-increasing the patch: `feat:` increases the minor, `feat!:` or a `BREAKING CHANGE:` footer increases
-the major, anything else increases the patch. It supersedes `increasePatchVersion` when enabled.
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) in the range `tag..HEAD` instead
+of always increasing the patch: `feat:` increases the minor, `feat!:` or a `BREAKING CHANGE:` footer in
+the trailer block increases the major, anything else increases the patch. The highest wins, lower
+components reset, and a prerelease qualifier is dropped by a minor or major increase. It supersedes
+`increasePatchVersion` when enabled. See `GIT_CONFIGURATION.md` for the full rules.
 
 ## Counting Version
 

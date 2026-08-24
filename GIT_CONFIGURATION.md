@@ -100,21 +100,50 @@ versions over and over again (the last found tag). Moreover, disabling this feat
 **Default:** `false`
 
 Set to `true` to derive the version increase from
-[Conventional Commits](https://www.conventionalcommits.org/) in the commits made since the last version tag,
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) made since the last version tag,
 instead of always increasing the patch version.
+
+Only meaningful together with `nisse.source.jgit.dynamicVersion`; it has no effect on its own, and none when
+the repository has no version tag to increase from (the `0.1.0-{commitCount}` fallback stands whatever the
+commits say).
 
 The highest increase among those commits wins:
 
 | Commit | Increase | `1.2.3` becomes |
 | --- | --- | --- |
-| `fix: ...`, `chore: ...`, or any other type | patch | `1.2.4` |
-| `feat: ...` | minor, patch reset | `1.3.0` |
+| `fix: ...`, `chore(deps): ...`, or any other type | patch | `1.2.4` |
+| `feat: ...`, `feat(lang): ...` | minor, patch reset | `1.3.0` |
 | `feat!: ...`, `fix(api)!: ...`, or a `BREAKING CHANGE:` footer | major, minor and patch reset | `2.0.0` |
 
-A commit that is not a Conventional Commit contributes a patch increase, so enabling this can never produce a
-*smaller* increase than `nisse.source.jgit.increasePatchVersion` would have.
+Those are the version numbers alone. With the defaults (`appendBuildNumber`, `appendSnapshot`) the property
+value is `1.3.0-2-SNAPSHOT` rather than `1.3.0`.
+
+What counts, precisely:
+
+- **The commit range is `tag..HEAD` by reachability**, not by date — so a branch cut before the release and
+  merged after it still counts, and the tagged commit itself never does.
+- **A `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer counts only in the trailer block** — the last paragraph —
+  and only on a commit that is a Conventional Commit to begin with. The same words in body prose, in a quoted
+  changelog, or in the body `git revert` copies do not increase the major.
+- **A commit that is not a Conventional Commit contributes a patch increase.** Enabling this can therefore
+  never produce a *smaller* increase than `nisse.source.jgit.increasePatchVersion` would have.
+- **The type is matched case-insensitively** (`Feat:` is a `feat`); the footer token is not, per the
+  specification. The scope must be non-empty, and the colon must be followed by a space.
+- **A prerelease qualifier is dropped by a minor or major increase**: `1.2.3-rc1` with a `feat!:` becomes
+  `2.0.0`, not `2.0.0-rc1`. A patch increase keeps it, as before.
+- **A revert does not undo an increase.** The reverted commit is still in the range, so its increase stands.
 
 When enabled, this **supersedes** `nisse.source.jgit.increasePatchVersion`, which is then not consulted.
+
+!!! note
+
+    Enabling this makes every commit author a participant in the release-version decision, since the increase
+    is read from their commit messages. Consider that against your contribution model before enabling it on a
+    repository that merges pull requests from forks.
+
+Interaction with version hint tags: the hint is used only when it is *higher* than the version derived from
+git history. A single `feat!:` can make the derived version outrank a hint that was pinning the intended next
+release.
 
 Note this differs from `nisse.source.jgit.countingVersion`: that walks the *entire* history from a starting
 version and counts directives such as `[minor]`, whereas this reads Conventional Commit types and applies a
