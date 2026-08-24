@@ -61,16 +61,16 @@ final class NissePropertyContributor implements PropertyContributor {
             if (Boolean.parseBoolean(protoSession.getUserProperties().getOrDefault("nisse.dump", "false"))) {
                 nisseProperties.forEach((k, v) -> logger.info("{}={}", k, v));
             }
+            // Override unexpanded placeholders (export-subst $Format:...$, Maven ${...})
+            // from maven-user.properties that Maven 4 auto-loads before extensions run,
+            // but preserve CLI -D overrides for non-placeholder values.
             for (Map.Entry<String, String> entry : nisseProperties.entrySet()) {
                 if (isUnexpandedPlaceholder(result.get(entry.getKey())) && !isUnexpandedPlaceholder(entry.getValue())) {
-                    // we have expanded value
                     result.put(entry.getKey(), entry.getValue());
                 } else {
-                    // otherwise preserve possible user properties precedence (ie CLI -Dnisse.foo.bar=baz)
                     result.putIfAbsent(entry.getKey(), entry.getValue());
                 }
             }
-            nisseProperties.forEach(result::putIfAbsent);
             return result;
         } catch (IOException e) {
             throw new UncheckedIOException("Error while creating Nisse configuration", e);
