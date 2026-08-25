@@ -234,6 +234,16 @@ public class JGitPropertySource implements PropertySource {
     private static final String DEFAULT_VERSION_HINT_PATTERN = "${version}-SNAPSHOT";
 
     /**
+     * Tag prefix for matching version tags. When empty (default), tags starting with an optional
+     * {@code "v"} followed by a semantic version are matched (e.g. {@code v1.0.0}, {@code 2.3.1}).
+     * Set to a non-empty value like {@code "jline-"} or {@code "camel-"} to match prefixed tags
+     * (e.g. {@code jline-3.28.0}, {@code camel-4.8.0}).
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_TAG_PREFIX = "nisse.source.jgit.tagPrefix";
+
+    private static final String DEFAULT_TAG_PREFIX = "";
+
+    /**
      * Configure the timestamp format for the date property. Supports named patterns:
      * - "git" (default): EEE MMM dd HH:mm:ss yyyy Z
      * - "iso8601": yyyy-MM-dd'T'HH:mm:ss'Z' (UTC)
@@ -302,6 +312,23 @@ public class JGitPropertySource implements PropertySource {
     static String redactCredentials(String url) {
         Matcher m = HTTP_CREDENTIAL_PATTERN.matcher(url);
         return m.matches() ? m.group(1) + m.group(2) : url;
+    }
+
+    /**
+     * Builds a tag version pattern based on the configured tag prefix.
+     * <p>
+     * When {@code tagPrefix} is empty, the returned pattern matches the traditional
+     * {@code v?X.Y.Z} form (backward compatible). When non-empty, the prefix is treated
+     * as a literal string (regex-quoted) and replaces the {@code v?} portion.
+     *
+     * @param tagPrefix the tag prefix from configuration, may be {@code null} or empty
+     * @return a compiled pattern for matching version tags
+     */
+    static Pattern buildTagVersionPattern(String tagPrefix) {
+        if (tagPrefix == null || tagPrefix.isEmpty()) {
+            return TAG_VERSION_PATTERN;
+        }
+        return Pattern.compile("refs/tags/" + Pattern.quote(tagPrefix) + "((\\d+\\.\\d+\\.\\d+)(.*))");
     }
 
     @Override
@@ -743,6 +770,22 @@ public class JGitPropertySource implements PropertySource {
             }
             count++;
         }
+
+        // Log when the repository has tags but none matched the version pattern
+        List<Ref> allTags = git.tagList().call();
+        if (!allTags.isEmpty()) {
+            String tagPrefix = configuration
+                    .getConfiguration()
+                    .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_TAG_PREFIX, DEFAULT_TAG_PREFIX);
+            Pattern versionPattern = buildTagVersionPattern(tagPrefix);
+            logger.info(
+                    "Found {} tag(s) but none matched pattern '{}'. Using default version {}."
+                            + " Hint: set nisse.source.jgit.tagPrefix if your tags use a prefix like 'myproject-'.",
+                    allTags.size(),
+                    versionPattern.pattern(),
+                    defaultVersion);
+        }
+
         return mayAddQualifier(properties, configuration, new VersionInformation(defaultVersion + "-" + count));
     }
 
@@ -761,6 +804,10 @@ public class JGitPropertySource implements PropertySource {
                 .getConfiguration()
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN, DEFAULT_VERSION_HINT_PATTERN);
         boolean isCustomPattern = !DEFAULT_VERSION_HINT_PATTERN.equals(versionHintPattern);
+
+        String tagPrefix =
+                configuration.getConfiguration().getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_TAG_PREFIX, DEFAULT_TAG_PREFIX);
+        Pattern versionPattern = buildTagVersionPattern(tagPrefix);
 
         return git.tagList().call().stream()
                 .filter(tag -> {
@@ -785,7 +832,7 @@ public class JGitPropertySource implements PropertySource {
                         return !isVersionHintTag(configuration, tagName);
                     }
                 })
-                .map(TAG_VERSION_PATTERN::matcher)
+                .map(versionPattern::matcher)
                 .filter(m -> m.matches() && m.groupCount() > 0)
                 .map(m -> m.group(1))
                 .collect(Collectors.toList());

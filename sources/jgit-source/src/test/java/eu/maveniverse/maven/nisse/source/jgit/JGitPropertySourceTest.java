@@ -959,6 +959,192 @@ public class JGitPropertySourceTest {
     }
 
     @Test
+    void testBuildTagVersionPatternDefault() {
+        // Empty prefix should return the default TAG_VERSION_PATTERN (v? prefix)
+        Pattern defaultPattern = JGitPropertySource.buildTagVersionPattern("");
+        assertSame(JGitPropertySource.TAG_VERSION_PATTERN, defaultPattern);
+
+        Pattern nullPattern = JGitPropertySource.buildTagVersionPattern(null);
+        assertSame(JGitPropertySource.TAG_VERSION_PATTERN, nullPattern);
+
+        // Default pattern matches v-prefixed and bare version tags
+        assertTrue(defaultPattern.matcher("refs/tags/v1.0.0").matches());
+        assertTrue(defaultPattern.matcher("refs/tags/1.0.0").matches());
+        assertFalse(defaultPattern.matcher("refs/tags/jline-3.28.0").matches());
+        assertFalse(defaultPattern.matcher("refs/tags/release-1.0.0").matches());
+    }
+
+    @Test
+    void testBuildTagVersionPatternCustomPrefix() {
+        Pattern jlinePattern = JGitPropertySource.buildTagVersionPattern("jline-");
+        assertTrue(jlinePattern.matcher("refs/tags/jline-3.28.0").matches());
+        assertFalse(jlinePattern.matcher("refs/tags/v3.28.0").matches());
+        assertFalse(jlinePattern.matcher("refs/tags/3.28.0").matches());
+
+        // Verify version extraction
+        java.util.regex.Matcher m = jlinePattern.matcher("refs/tags/jline-3.28.0");
+        assertTrue(m.matches());
+        assertEquals("3.28.0", m.group(1));
+
+        Pattern releasePattern = JGitPropertySource.buildTagVersionPattern("release-");
+        assertTrue(releasePattern.matcher("refs/tags/release-1.0.0").matches());
+        assertFalse(releasePattern.matcher("refs/tags/v1.0.0").matches());
+
+        Pattern camelPattern = JGitPropertySource.buildTagVersionPattern("camel-");
+        assertTrue(camelPattern.matcher("refs/tags/camel-4.8.0").matches());
+        assertFalse(camelPattern.matcher("refs/tags/v4.8.0").matches());
+    }
+
+    @Test
+    void testBuildTagVersionPatternWithQualifier() {
+        Pattern jlinePattern = JGitPropertySource.buildTagVersionPattern("jline-");
+        java.util.regex.Matcher m = jlinePattern.matcher("refs/tags/jline-3.28.0-rc1");
+        assertTrue(m.matches());
+        assertEquals("3.28.0-rc1", m.group(1));
+        assertEquals("3.28.0", m.group(2));
+        assertEquals("-rc1", m.group(3));
+    }
+
+    @Test
+    void testTagPrefixDynamicVersion(@TempDir Path tempDir) throws Exception {
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // Create initial commit with a prefixed tag
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "initial");
+        exec(repo, "git", "tag", "jline-1.0.0");
+
+        // Create a second commit so version is computed from tag history
+        Files.write(repo.resolve("file.txt"), "v2".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "second commit");
+
+        // Without tagPrefix, the jline- tag is not recognized → falls back to default
+        Map<String, String> propsNoPrefix = new HashMap<>();
+        propsNoPrefix.put("nisse.source.jgit.dynamicVersion", "true");
+
+        JGitPropertySource source = new JGitPropertySource();
+        Map<String, String> resultNoPrefix = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(propsNoPrefix)
+                .build());
+
+        String versionNoPrefix = resultNoPrefix.get("dynamicVersion");
+        assertNotNull(versionNoPrefix, "dynamicVersion should be set");
+        assertTrue(
+                versionNoPrefix.startsWith("0.1.0"),
+                "Without tagPrefix, should fall back to default 0.1.0 but got: " + versionNoPrefix);
+
+        // With tagPrefix=jline-, the tag is recognized
+        Map<String, String> propsWithPrefix = new HashMap<>();
+        propsWithPrefix.put("nisse.source.jgit.dynamicVersion", "true");
+        propsWithPrefix.put("nisse.source.jgit.tagPrefix", "jline-");
+
+        Map<String, String> resultWithPrefix = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(propsWithPrefix)
+                .build());
+
+        String versionWithPrefix = resultWithPrefix.get("dynamicVersion");
+        assertNotNull(versionWithPrefix, "dynamicVersion should be set");
+        assertTrue(
+                versionWithPrefix.startsWith("1.0."),
+                "With tagPrefix=jline-, should resolve from jline-1.0.0 tag but got: " + versionWithPrefix);
+    }
+
+    @Test
+    void testTagPrefixExactMatch(@TempDir Path tempDir) throws Exception {
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // Create a commit tagged with the prefixed tag — HEAD is on the tag
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "release");
+        exec(repo, "git", "tag", "mylib-2.5.0");
+
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.tagPrefix", "mylib-");
+
+        JGitPropertySource source = new JGitPropertySource();
+        Map<String, String> result = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+
+        assertEquals("2.5.0", result.get("dynamicVersion"), "Should resolve exact version from tag on HEAD");
+    }
+
+    @Test
+    void testUnmatchedTagsFallbackToDefault(@TempDir Path tempDir) throws Exception {
+        // This test exercises the INFO logging path: tags exist but none match the pattern.
+        // With slf4j-simple we cannot assert on the log message directly, but we verify
+        // the behavioral outcome (fallback to default version) which triggers the log.
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // Create commits with tags that use non-standard prefixes
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "initial");
+        exec(repo, "git", "tag", "release-1.0.0");
+
+        Files.write(repo.resolve("file.txt"), "v2".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "second");
+        exec(repo, "git", "tag", "camel-2.0.0");
+
+        Files.write(repo.resolve("file.txt"), "v3".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "third");
+
+        // Default config: neither release- nor camel- tags match → fallback to 0.1.0
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+
+        JGitPropertySource source = new JGitPropertySource();
+        Map<String, String> result = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+
+        String version = result.get("dynamicVersion");
+        assertNotNull(version, "dynamicVersion should be set");
+        assertTrue(
+                version.startsWith("0.1.0"),
+                "Tags exist but none match default pattern, should fall back to 0.1.0 but got: " + version);
+
+        // With tagPrefix=camel-, the camel-2.0.0 tag is recognized
+        userProps.put("nisse.source.jgit.tagPrefix", "camel-");
+
+        result = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+
+        version = result.get("dynamicVersion");
+        assertNotNull(version, "dynamicVersion should be set");
+        assertTrue(
+                version.startsWith("2.0."),
+                "With tagPrefix=camel-, should resolve from camel-2.0.0 tag but got: " + version);
+    }
+
+    @Test
     void sanitizeBranchName() {
         assertEquals("master", JGitPropertySource.sanitizeBranchName("master"));
         assertEquals("feat-cool-feature-01", JGitPropertySource.sanitizeBranchName("feat/cool-feature-01"));
