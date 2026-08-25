@@ -927,7 +927,7 @@ public class JGitPropertySourceTest {
     void testConventionalCommitsVersion(@TempDir Path tempDir) throws Exception {
         Map<String, String> userProps = new HashMap<>();
         userProps.put("nisse.source.jgit.dynamicVersion", "true");
-        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "conventionalCommits");
         userProps.put("nisse.source.jgit.appendBuildNumber", "false");
         userProps.put("nisse.source.jgit.appendSnapshot", "false");
         JGitPropertySource source = new JGitPropertySource();
@@ -997,7 +997,7 @@ public class JGitPropertySourceTest {
     void testConventionalCommitsAcrossAMergeOfABranchCutBeforeTheTag(@TempDir Path tempDir) throws Exception {
         Map<String, String> userProps = new HashMap<>();
         userProps.put("nisse.source.jgit.dynamicVersion", "true");
-        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "conventionalCommits");
         userProps.put("nisse.source.jgit.appendBuildNumber", "false");
         userProps.put("nisse.source.jgit.appendSnapshot", "false");
         JGitPropertySource source = new JGitPropertySource();
@@ -1023,6 +1023,8 @@ public class JGitPropertySourceTest {
 
     @Test
     void testConventionalCommitsSupersedesIncreasePatchVersion(@TempDir Path tempDir) throws Exception {
+        // Uses the deprecated boolean fallback to verify backward compatibility:
+        // conventionalCommits=true takes precedence over increasePatchVersion=false
         Map<String, String> userProps = new HashMap<>();
         userProps.put("nisse.source.jgit.dynamicVersion", "true");
         userProps.put("nisse.source.jgit.conventionalCommits", "true");
@@ -1044,7 +1046,7 @@ public class JGitPropertySourceTest {
     void testConventionalCommitsWithBuildNumberAndNoReleaseTag(@TempDir Path tempDir) throws Exception {
         Map<String, String> userProps = new HashMap<>();
         userProps.put("nisse.source.jgit.dynamicVersion", "true");
-        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "conventionalCommits");
         userProps.put("nisse.source.jgit.appendSnapshot", "false");
         JGitPropertySource source = new JGitPropertySource();
 
@@ -1067,7 +1069,7 @@ public class JGitPropertySourceTest {
     void testConventionalCommitsDropsAQualifierItHasOutgrown(@TempDir Path tempDir) throws Exception {
         Map<String, String> userProps = new HashMap<>();
         userProps.put("nisse.source.jgit.dynamicVersion", "true");
-        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "conventionalCommits");
         userProps.put("nisse.source.jgit.appendBuildNumber", "false");
         userProps.put("nisse.source.jgit.appendSnapshot", "false");
         JGitPropertySource source = new JGitPropertySource();
@@ -1085,7 +1087,7 @@ public class JGitPropertySourceTest {
     void testConventionalCommitsMinorOnZeroZeroXIsNotMistakenForNoReleaseTag(@TempDir Path tempDir) throws Exception {
         Map<String, String> userProps = new HashMap<>();
         userProps.put("nisse.source.jgit.dynamicVersion", "true");
-        userProps.put("nisse.source.jgit.conventionalCommits", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "conventionalCommits");
         userProps.put("nisse.source.jgit.appendBuildNumber", "false");
         userProps.put("nisse.source.jgit.appendSnapshot", "false");
         JGitPropertySource source = new JGitPropertySource();
@@ -1102,6 +1104,152 @@ public class JGitPropertySourceTest {
         // and the build would go backwards from 0.1.0 to 0.0.6.
         exec(repo, "git", "tag", "0.0.6-SNAPSHOT");
         assertDynamicVersion("0.1.0", source, repo, userProps);
+    }
+
+    @Test
+    void testVersionIncrementNone(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "none");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.2.3");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: breaking");
+
+        // versionIncrement=none suppresses every kind of increment
+        assertDynamicVersion("1.2.3", source, repo, userProps);
+    }
+
+    @Test
+    void testVersionIncrementEnumOverridesDeprecatedBooleans(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        // the new enum property takes precedence over the deprecated booleans
+        userProps.put("nisse.source.jgit.versionIncrement", "conventionalCommits");
+        userProps.put("nisse.source.jgit.increasePatchVersion", "false");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.2.3");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat: a feature");
+
+        // versionIncrement=conventionalCommits wins over increasePatchVersion=false
+        assertDynamicVersion("1.3.0", source, repo, userProps);
+    }
+
+    @Test
+    void testDeprecatedIncreasePatchVersionFalseResolvedAsNone(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        // no versionIncrement set — deprecated boolean is the fallback
+        userProps.put("nisse.source.jgit.increasePatchVersion", "false");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.2.3");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: breaking");
+
+        // increasePatchVersion=false without the new property resolves to "none"
+        assertDynamicVersion("1.2.3", source, repo, userProps);
+    }
+
+    @Test
+    void testZeroMajorDemotionDemotesMajorToMinorOnZeroX(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "conventionalCommits");
+        userProps.put("nisse.source.jgit.versionIncrement.zeroMajorDemotion", "true");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "0.5.2");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: breaking");
+
+        // with demotion enabled on 0.x: MAJOR -> MINOR, so 0.5.2 -> 0.6.0 (not 1.0.0)
+        assertDynamicVersion("0.6.0", source, repo, userProps);
+    }
+
+    @Test
+    void testZeroMajorDemotionDoesNotAffectNonZeroMajor(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "conventionalCommits");
+        userProps.put("nisse.source.jgit.versionIncrement.zeroMajorDemotion", "true");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.5.2");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: breaking");
+
+        // demotion only applies to 0.x; on 1.x a breaking change still bumps major
+        assertDynamicVersion("2.0.0", source, repo, userProps);
+    }
+
+    @Test
+    void testZeroMajorDemotionDisabledKeepsMajorBump(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "conventionalCommits");
+        // explicitly disabled (the default)
+        userProps.put("nisse.source.jgit.versionIncrement.zeroMajorDemotion", "false");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "0.5.2");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: breaking");
+
+        // without demotion: plain semver, 0.5.2 -> 1.0.0
+        assertDynamicVersion("1.0.0", source, repo, userProps);
+    }
+
+    @Test
+    void testIncreaseVersionWithZeroMajorDemotion() {
+        // unit-test the increaseVersion method directly for demotion
+        VersionInformation vi;
+
+        // MAJOR on 0.x with demotion -> MINOR
+        vi = new VersionInformation("0.5.2");
+        JGitPropertySource.increaseVersion(vi, JGitPropertySource.Bump.MAJOR, true);
+        assertEquals("0.6.0", vi.toString());
+
+        // MAJOR on 1.x with demotion -> still MAJOR (demotion only applies to 0.x)
+        vi = new VersionInformation("1.5.2");
+        JGitPropertySource.increaseVersion(vi, JGitPropertySource.Bump.MAJOR, true);
+        assertEquals("2.0.0", vi.toString());
+
+        // MINOR on 0.x with demotion -> MINOR (no change, demotion only affects MAJOR)
+        vi = new VersionInformation("0.5.2");
+        JGitPropertySource.increaseVersion(vi, JGitPropertySource.Bump.MINOR, true);
+        assertEquals("0.6.0", vi.toString());
+
+        // MAJOR on 0.x without demotion -> MAJOR
+        vi = new VersionInformation("0.5.2");
+        JGitPropertySource.increaseVersion(vi, JGitPropertySource.Bump.MAJOR, false);
+        assertEquals("1.0.0", vi.toString());
+
+        // MAJOR on 0.x with demotion drops qualifier too
+        vi = new VersionInformation("0.5.2-rc1");
+        JGitPropertySource.increaseVersion(vi, JGitPropertySource.Bump.MAJOR, true);
+        assertEquals("0.6.0", vi.toString());
     }
 
     private static Path newRepo(Path dir) throws Exception {

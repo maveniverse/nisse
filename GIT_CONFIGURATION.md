@@ -95,19 +95,26 @@ If current commit doesn't have a tag, should the patch version be incremented or
 versions over and over again (the last found tag). Moreover, disabling this feature, but keeping
 `nisse.source.jgit.appendSnapshot` enabled, will produce "backward", hence broken Maven versions!
 
-#### `nisse.source.jgit.conventionalCommits`
+#### `nisse.source.jgit.versionIncrement`
 
-**Default:** `false`
+**Default:** `patch`
 
-Set to `true` to derive the version increase from
-[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) made since the last version tag,
-instead of always increasing the patch version.
+Controls how the version is increased when the current commit is not tagged. Legal values:
 
-Only meaningful together with `nisse.source.jgit.dynamicVersion`; it has no effect on its own, and none when
-the repository has no version tag to increase from (the `0.1.0-{commitCount}` fallback stands whatever the
-commits say).
+| Value | Behaviour | Equivalent deprecated property |
+| --- | --- | --- |
+| `patch` (default) | Always increase the patch version | `increasePatchVersion=true` |
+| `none` | No increase | `increasePatchVersion=false` |
+| `conventionalCommits` | Derive from [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) | `conventionalCommits=true` |
 
-The highest increase among those commits wins:
+When this property is set it takes precedence over the deprecated `nisse.source.jgit.increasePatchVersion`
+and `nisse.source.jgit.conventionalCommits` booleans, which are still honoured as fallbacks when
+`versionIncrement` is absent.
+
+##### Conventional Commits mode
+
+When `versionIncrement=conventionalCommits`, the increase comes from the commits made since the last version
+tag. The highest increase among those commits wins:
 
 | Commit | Increase | `1.2.3` becomes |
 | --- | --- | --- |
@@ -125,15 +132,13 @@ What counts, precisely:
 - **A `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer counts only in the trailer block** — the last paragraph —
   and only on a commit that is a Conventional Commit to begin with. The same words in body prose, in a quoted
   changelog, or in the body `git revert` copies do not increase the major.
-- **A commit that is not a Conventional Commit contributes a patch increase.** Enabling this can therefore
-  never produce a *smaller* increase than `nisse.source.jgit.increasePatchVersion` would have.
+- **A commit that is not a Conventional Commit contributes a patch increase.** This mode can therefore
+  never produce a *smaller* increase than `versionIncrement=patch` would have.
 - **The type is matched case-insensitively** (`Feat:` is a `feat`); the footer token is not, per the
   specification. The scope must be non-empty, and the colon must be followed by a space.
 - **A prerelease qualifier is dropped by a minor or major increase**: `1.2.3-rc1` with a `feat!:` becomes
   `2.0.0`, not `2.0.0-rc1`. A patch increase keeps it, as before.
 - **A revert does not undo an increase.** The reverted commit is still in the range, so its increase stands.
-
-When enabled, this **supersedes** `nisse.source.jgit.increasePatchVersion`, which is then not consulted.
 
 !!! note
 
@@ -148,6 +153,19 @@ release.
 Note this differs from `nisse.source.jgit.countingVersion`: that walks the *entire* history from a starting
 version and counts directives such as `[minor]`, whereas this reads Conventional Commit types and applies a
 single increase to the *last version tag*.
+
+#### `nisse.source.jgit.versionIncrement.zeroMajorDemotion`
+
+**Default:** `false`
+
+When `true` and the current major version is `0`, a breaking-change increment is demoted from major to minor,
+keeping the project in the `0.x` space. For example, `feat!:` on `0.5.2` produces `0.6.0` instead of `1.0.0`.
+
+This follows the convention used by npm, Cargo, and `semantic-release` where pre-1.0 projects signal instability
+via the `0.x` major and reserve the jump to `1.0.0` for an explicit decision by the maintainer.
+
+Only meaningful together with `versionIncrement=conventionalCommits`. Has no effect in other modes, since only
+Conventional Commits mode can produce major or minor bumps.
 
 #### `nisse.source.jgit.appendBuildNumber`
 

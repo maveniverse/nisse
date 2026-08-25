@@ -187,11 +187,37 @@ public class JGitPropertySource implements PropertySource {
      * Set to {@code true} to derive the version increase from Conventional Commits made since the last version
      * tag, instead of always increasing the patch version. Supersedes
      * {@link #JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION}. See {@code GIT_CONFIGURATION.md}.
+     *
+     * @deprecated Use {@link #JGIT_CONF_SYSTEM_PROPERTY_VERSION_INCREMENT} with value {@code conventionalCommits}
+     *     instead. This property is still honoured as a fallback when {@code versionIncrement} is not set.
      */
     private static final String JGIT_CONF_SYSTEM_PROPERTY_CONVENTIONAL_COMMITS =
             "nisse.source.jgit.conventionalCommits";
 
     private static final String DEFAULT_CONVENTIONAL_COMMITS = Boolean.FALSE.toString();
+
+    /**
+     * Version increment strategy. Legal values: {@code patch} (default, always increment patch),
+     * {@code none} (no increment), {@code conventionalCommits} (derive from Conventional Commits).
+     * <p>
+     * When set, this takes precedence over the deprecated {@link #JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION}
+     * and {@link #JGIT_CONF_SYSTEM_PROPERTY_CONVENTIONAL_COMMITS} properties.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_VERSION_INCREMENT = "nisse.source.jgit.versionIncrement";
+
+    private static final String VERSION_INCREMENT_PATCH = "patch";
+    private static final String VERSION_INCREMENT_NONE = "none";
+    private static final String VERSION_INCREMENT_CONVENTIONAL_COMMITS = "conventionalcommits";
+
+    /**
+     * When {@code true} and the current major version is 0, a {@link Bump#MAJOR} increment is demoted to
+     * {@link Bump#MINOR}, keeping the project in the {@code 0.x} space. Only meaningful together with
+     * {@code versionIncrement=conventionalCommits}.
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_ZERO_MAJOR_DEMOTION =
+            "nisse.source.jgit.versionIncrement.zeroMajorDemotion";
+
+    private static final String DEFAULT_ZERO_MAJOR_DEMOTION = Boolean.FALSE.toString();
 
     /**
      * Whether the buildNumber shall be appended or not.
@@ -758,22 +784,17 @@ public class JGitPropertySource implements PropertySource {
                 if (commit.equals(lastCommit)) {
                     return new GitVersion(vi, true);
                 } else {
-                    boolean conventionalCommits = Boolean.parseBoolean(configuration
-                            .getConfiguration()
-                            .getOrDefault(
-                                    JGIT_CONF_SYSTEM_PROPERTY_CONVENTIONAL_COMMITS, DEFAULT_CONVENTIONAL_COMMITS));
-                    if (conventionalCommits) {
-                        increaseVersion(vi, highestBumpFrom(messagesSince(git, head, commit)));
-                    } else {
-                        boolean increasePatchVersion = Boolean.parseBoolean(configuration
+                    String increment = resolveVersionIncrement(configuration.getConfiguration());
+                    if (VERSION_INCREMENT_CONVENTIONAL_COMMITS.equals(increment)) {
+                        boolean zeroMajorDemotion = Boolean.parseBoolean(configuration
                                 .getConfiguration()
                                 .getOrDefault(
-                                        JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION,
-                                        DEFAULT_INCREASE_PATCH_VERSION));
-                        if (increasePatchVersion) {
-                            vi.setPatch(vi.getPatch() + 1);
-                        }
+                                        JGIT_CONF_SYSTEM_PROPERTY_ZERO_MAJOR_DEMOTION, DEFAULT_ZERO_MAJOR_DEMOTION));
+                        increaseVersion(vi, highestBumpFrom(messagesSince(git, head, commit)), zeroMajorDemotion);
+                    } else if (VERSION_INCREMENT_PATCH.equals(increment)) {
+                        vi.setPatch(vi.getPatch() + 1);
                     }
+                    // VERSION_INCREMENT_NONE: no change
                     boolean appendBuildNumber = Boolean.parseBoolean(configuration
                             .getConfiguration()
                             .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_BUILD_NUMBER, DEFAULT_APPEND_BUILD_NUMBER));
@@ -788,6 +809,31 @@ public class JGitPropertySource implements PropertySource {
         return new GitVersion(
                 mayAddQualifier(properties, configuration, new VersionInformation(defaultVersion + "-" + count)),
                 false);
+    }
+
+    /**
+     * Resolves the effective version increment strategy from the configuration. The new
+     * {@code nisse.source.jgit.versionIncrement} property takes precedence; when absent, the deprecated
+     * booleans {@code conventionalCommits} and {@code increasePatchVersion} are used as fallbacks.
+     *
+     * @return one of {@link #VERSION_INCREMENT_PATCH}, {@link #VERSION_INCREMENT_NONE}, or
+     *     {@link #VERSION_INCREMENT_CONVENTIONAL_COMMITS}
+     */
+    private String resolveVersionIncrement(Map<String, String> config) {
+        String explicit = config.get(JGIT_CONF_SYSTEM_PROPERTY_VERSION_INCREMENT);
+        if (explicit != null) {
+            return explicit.toLowerCase(Locale.ROOT);
+        }
+        // Deprecated fallback: honour old booleans when the new property is absent
+        if (Boolean.parseBoolean(
+                config.getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_CONVENTIONAL_COMMITS, DEFAULT_CONVENTIONAL_COMMITS))) {
+            return VERSION_INCREMENT_CONVENTIONAL_COMMITS;
+        }
+        if (!Boolean.parseBoolean(config.getOrDefault(
+                JGIT_CONF_SYSTEM_PROPERTY_INCREASE_PATCH_VERSION, DEFAULT_INCREASE_PATCH_VERSION))) {
+            return VERSION_INCREMENT_NONE;
+        }
+        return VERSION_INCREMENT_PATCH;
     }
 
     /**
@@ -896,15 +942,22 @@ public class JGitPropertySource implements PropertySource {
 
     /**
      * Applies an increment, resetting the components below it as semantic versioning requires.
+     *
+     * @param zeroMajorDemotion when {@code true} and the current major is 0, a {@link Bump#MAJOR} is demoted to
+     *     {@link Bump#MINOR}, keeping the project in the {@code 0.x} space
      */
-    static void increaseVersion(VersionInformation vi, Bump bump) {
-        if (bump == Bump.MAJOR) {
+    static void increaseVersion(VersionInformation vi, Bump bump, boolean zeroMajorDemotion) {
+        Bump effective = bump;
+        if (zeroMajorDemotion && vi.getMajor() == 0 && effective == Bump.MAJOR) {
+            effective = Bump.MINOR;
+        }
+        if (effective == Bump.MAJOR) {
             vi.setMajor(vi.getMajor() + 1);
             vi.setMinor(0);
             vi.setPatch(0);
             // 1.2.3-rc1 becoming 2.0.0-rc1 would claim to be a candidate for a release that never had one.
             vi.setQualifier(null);
-        } else if (bump == Bump.MINOR) {
+        } else if (effective == Bump.MINOR) {
             vi.setMinor(vi.getMinor() + 1);
             vi.setPatch(0);
             vi.setQualifier(null);

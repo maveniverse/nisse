@@ -124,8 +124,10 @@ nisseConfig {
 
         // --- dynamic version (tag-based) ---
         dynamicVersion = true                // default: false
-        increasePatchVersion = true          // default: true
-        conventionalCommits = false          // default: false
+        versionIncrement = "patch"           // default: "patch" ("patch", "none", "conventionalCommits")
+        zeroMajorDemotion = false            // default: false (demote MAJOR to MINOR on 0.x)
+        increasePatchVersion = true          // deprecated, use versionIncrement
+        conventionalCommits = false          // deprecated, use versionIncrement
         appendBuildNumber = true             // default: true
         appendSnapshot = true                // default: true
         appendDirty = false                  // default: false
@@ -167,15 +169,19 @@ v1.2.3  →  on tag: 1.2.3
          not on tag: 1.2.4-5-SNAPSHOT  (5 commits after tag)
 ```
 
-Control the output with `appendSnapshot`, `appendBuildNumber`, `increasePatchVersion`,
+Control the output with `appendSnapshot`, `appendBuildNumber`, `versionIncrement`,
 `appendDirty`, and `dirtyQualifier`.
 
-Set `conventionalCommits = true` to take the increase from
+Set `versionIncrement = "conventionalCommits"` to take the increase from
 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) in the range `tag..HEAD` instead
 of always increasing the patch: `feat:` increases the minor, `feat!:` or a `BREAKING CHANGE:` footer in
 the trailer block increases the major, anything else increases the patch. The highest wins, lower
-components reset, and a prerelease qualifier is dropped by a minor or major increase. It supersedes
-`increasePatchVersion` when enabled. See `GIT_CONFIGURATION.md` for the full rules.
+components reset, and a prerelease qualifier is dropped by a minor or major increase. Set
+`versionIncrement = "none"` to disable incrementing entirely. See `GIT_CONFIGURATION.md` for the full rules.
+
+Set `zeroMajorDemotion = true` to demote a major bump to minor on `0.x` versions, keeping the project in
+the `0.x` space until the maintainer explicitly decides to go `1.0.0`. Only meaningful with
+`versionIncrement = "conventionalCommits"`.
 
 ## Counting Version
 
