@@ -997,6 +997,64 @@ public class JGitPropertySourceTest {
     }
 
     @Test
+    void testUnmatchedTagsFallbackToDefault(@TempDir Path tempDir) throws Exception {
+        // This test exercises the INFO logging path: tags exist but none match the pattern.
+        // With slf4j-simple we cannot assert on the log message directly, but we verify
+        // the behavioral outcome (fallback to default version) which triggers the log.
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // Create commits with tags that use non-standard prefixes
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "initial");
+        exec(repo, "git", "tag", "release-1.0.0");
+
+        Files.write(repo.resolve("file.txt"), "v2".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "second");
+        exec(repo, "git", "tag", "camel-2.0.0");
+
+        Files.write(repo.resolve("file.txt"), "v3".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "third");
+
+        // Default config: neither release- nor camel- tags match → fallback to 0.1.0
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+
+        JGitPropertySource source = new JGitPropertySource();
+        Map<String, String> result = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+
+        String version = result.get("dynamicVersion");
+        assertNotNull(version, "dynamicVersion should be set");
+        assertTrue(
+                version.startsWith("0.1.0"),
+                "Tags exist but none match default pattern, should fall back to 0.1.0 but got: " + version);
+
+        // With tagPrefix=camel-, the camel-2.0.0 tag is recognized
+        userProps.put("nisse.source.jgit.tagPrefix", "camel-");
+
+        result = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+
+        version = result.get("dynamicVersion");
+        assertNotNull(version, "dynamicVersion should be set");
+        assertTrue(
+                version.startsWith("2.0."),
+                "With tagPrefix=camel-, should resolve from camel-2.0.0 tag but got: " + version);
+    }
+
+    @Test
     void sanitizeBranchName() {
         assertEquals("master", JGitPropertySource.sanitizeBranchName("master"));
         assertEquals("feat-cool-feature-01", JGitPropertySource.sanitizeBranchName("feat/cool-feature-01"));
