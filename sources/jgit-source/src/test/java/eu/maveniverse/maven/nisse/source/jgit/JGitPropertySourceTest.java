@@ -666,6 +666,96 @@ public class JGitPropertySourceTest {
     }
 
     @Test
+    void testVersionHintMultipleTags(@TempDir Path tempDir) throws Exception {
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // Initial commit with two version hint tags (both reachable from HEAD)
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "initial");
+        exec(repo, "git", "tag", "-a", "2.0.0-SNAPSHOT", "-m", "hint low");
+        exec(repo, "git", "tag", "-a", "3.0.0-SNAPSHOT", "-m", "hint high");
+
+        // Another commit so HEAD is ahead of the hint tags
+        Files.write(repo.resolve("file.txt"), "v2".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "work");
+
+        // Dynamic version should pick the highest reachable hint: 3.0.0
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+
+        JGitPropertySource source = new JGitPropertySource();
+        Map<String, String> properties = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+
+        String dynamicVersion = properties.get("dynamicVersion");
+        assertNotNull(dynamicVersion, "dynamicVersion should be set");
+        assertTrue(
+                dynamicVersion.startsWith("3.0.0"),
+                "Should use highest reachable hint tag (3.0.0) but got: " + dynamicVersion);
+    }
+
+    @Test
+    void testVersionHintMixedReachability(@TempDir Path tempDir) throws Exception {
+        Path repo = tempDir.resolve("repo");
+        Files.createDirectories(repo);
+
+        exec(repo, "git", "init", "-b", "master");
+        exec(repo, "git", "config", "user.email", "test@test.com");
+        exec(repo, "git", "config", "user.name", "Test");
+
+        // Initial commit — branch point
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "initial");
+
+        // Create feature branch from this point
+        exec(repo, "git", "branch", "feature");
+
+        // On master: add commit with a high hint tag (unreachable from feature)
+        Files.write(repo.resolve("file.txt"), "v2".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "master work");
+        exec(repo, "git", "tag", "-a", "5.0.0-SNAPSHOT", "-m", "hint on master");
+
+        // Switch to feature: add commit with a lower hint tag (reachable from feature)
+        exec(repo, "git", "checkout", "feature");
+        Files.write(repo.resolve("feat.txt"), "feat".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "feat.txt");
+        exec(repo, "git", "commit", "-m", "feature work");
+        exec(repo, "git", "tag", "-a", "2.0.0-SNAPSHOT", "-m", "hint on feature");
+
+        // Another commit so HEAD is ahead of the hint
+        Files.write(repo.resolve("feat.txt"), "feat2".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "feat.txt");
+        exec(repo, "git", "commit", "-m", "more feature work");
+
+        // From feature branch, only the 2.0.0-SNAPSHOT hint should be reachable
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+
+        JGitPropertySource source = new JGitPropertySource();
+        Map<String, String> properties = source.getProperties(SimpleNisseConfiguration.builder()
+                .withCurrentWorkingDirectory(repo)
+                .withUserProperties(userProps)
+                .build());
+
+        String dynamicVersion = properties.get("dynamicVersion");
+        assertNotNull(dynamicVersion, "dynamicVersion should be set");
+        assertTrue(
+                dynamicVersion.startsWith("2.0.0"),
+                "Should use only reachable hint tag (2.0.0), ignoring unreachable 5.0.0, but got: " + dynamicVersion);
+    }
+
+    @Test
     void testCountingVersion(@TempDir Path tempDir) throws Exception {
         Map<String, String> userProps = new HashMap<>();
         userProps.put("nisse.source.jgit.countingVersion", "true");

@@ -906,29 +906,39 @@ public class JGitPropertySource implements PropertySource {
         logger.debug("Using version hint regex pattern: {}", hintTagPattern.pattern());
 
         Repository repository = git.getRepository();
-        return git.tagList().call().stream()
-                .filter(tag -> hintTagPattern.matcher(tag.getName()).matches())
-                .filter(tag -> isReachableFrom(repository, tag, head))
-                .map(Ref::getName)
-                .map(hintTagPattern::matcher)
-                .filter(m -> m.matches() && m.groupCount() > 0)
-                .map(m -> m.group(1)) // Extract the version part
-                .collect(Collectors.toList());
+        if (head == null) {
+            // No HEAD — treat all matching tags as reachable
+            return git.tagList().call().stream()
+                    .filter(tag -> hintTagPattern.matcher(tag.getName()).matches())
+                    .map(Ref::getName)
+                    .map(hintTagPattern::matcher)
+                    .filter(m -> m.matches() && m.groupCount() > 0)
+                    .map(m -> m.group(1))
+                    .collect(Collectors.toList());
+        }
+        try (RevWalk revWalk = new RevWalk(repository)) {
+            RevCommit headCommit = revWalk.parseCommit(head);
+            return git.tagList().call().stream()
+                    .filter(tag -> hintTagPattern.matcher(tag.getName()).matches())
+                    .filter(tag -> isReachableFrom(revWalk, repository, tag, headCommit))
+                    .map(Ref::getName)
+                    .map(hintTagPattern::matcher)
+                    .filter(m -> m.matches() && m.groupCount() > 0)
+                    .map(m -> m.group(1)) // Extract the version part
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            logger.debug("Could not open RevWalk for reachability checks: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
-    private boolean isReachableFrom(Repository repository, Ref tag, ObjectId head) {
-        if (head == null) {
-            return true;
-        }
+    private boolean isReachableFrom(RevWalk revWalk, Repository repository, Ref tag, RevCommit headCommit) {
         try {
             Ref peeledRef = repository.getRefDatabase().peel(tag);
             ObjectId tagObjectId =
                     (peeledRef.getPeeledObjectId() != null ? peeledRef.getPeeledObjectId() : tag.getObjectId());
-            try (RevWalk revWalk = new RevWalk(repository)) {
-                RevCommit tagCommit = revWalk.parseCommit(tagObjectId);
-                RevCommit headCommit = revWalk.parseCommit(head);
-                return revWalk.isMergedInto(tagCommit, headCommit);
-            }
+            RevCommit tagCommit = revWalk.parseCommit(tagObjectId);
+            return revWalk.isMergedInto(tagCommit, headCommit);
         } catch (IOException e) {
             logger.debug("Could not check reachability for tag {}: {}", tag.getName(), e.getMessage());
             return false;
