@@ -100,8 +100,30 @@ public abstract class NisseExtension {
         /** Length of the short commit id. */
         public abstract Property<Integer> getShortCommitIdLength();
 
-        /** Whether to increase the patch version. */
+        /**
+         * Whether to increase the patch version.
+         * @deprecated Use {@link #getVersionIncrement()} with value {@code "patch"} or {@code "none"} instead.
+         */
         public abstract Property<Boolean> getIncreasePatchVersion();
+
+        /**
+         * Whether to derive the version increase from Conventional Commits since the last version tag.
+         * @deprecated Use {@link #getVersionIncrement()} with value {@code "conventionalCommits"} instead.
+         */
+        public abstract Property<Boolean> getConventionalCommits();
+
+        /**
+         * Version increment strategy: {@code "patch"} (default), {@code "none"}, or {@code "conventionalCommits"}.
+         * Takes precedence over the deprecated {@link #getIncreasePatchVersion()} and
+         * {@link #getConventionalCommits()} properties.
+         */
+        public abstract Property<String> getVersionIncrement();
+
+        /**
+         * Whether to demote a MAJOR bump to MINOR on 0.x versions when using {@code conventionalCommits}.
+         * Defaults to {@code false}.
+         */
+        public abstract Property<Boolean> getZeroMajorDemotion();
 
         /** Whether to append the build number. */
         public abstract Property<Boolean> getAppendBuildNumber();
@@ -154,6 +176,9 @@ public abstract class NisseExtension {
             setIfPresent(props, "nisse.source.jgit.countingVersion", getCountingVersion());
             setIfPresent(props, "nisse.source.jgit.shortCommitIdLength", getShortCommitIdLength());
             setIfPresent(props, "nisse.source.jgit.increasePatchVersion", getIncreasePatchVersion());
+            setIfPresent(props, "nisse.source.jgit.conventionalCommits", getConventionalCommits());
+            setIfPresent(props, "nisse.source.jgit.versionIncrement", getVersionIncrement());
+            setIfPresent(props, "nisse.source.jgit.versionIncrement.zeroMajorDemotion", getZeroMajorDemotion());
             setIfPresent(props, "nisse.source.jgit.appendBuildNumber", getAppendBuildNumber());
             setIfPresent(props, "nisse.source.jgit.appendSnapshot", getAppendSnapshot());
             setIfPresent(props, "nisse.source.jgit.appendDirty", getAppendDirty());
