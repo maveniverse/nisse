@@ -506,7 +506,7 @@ public class JGitPropertySource implements PropertySource {
 
         ZonedDateTime commitDateTime = ZonedDateTime.ofInstant(
                 Instant.ofEpochSecond(commit.getCommitTime()),
-                commit.getAuthorIdent().getTimeZone().toZoneId());
+                commit.getCommitterIdent().getTimeZone().toZoneId());
 
         // For ISO-8601 format, convert to UTC
         if ("iso8601".equalsIgnoreCase(dateFormat)) {
