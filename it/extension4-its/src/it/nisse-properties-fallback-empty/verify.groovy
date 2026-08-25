@@ -6,19 +6,22 @@
  * https://www.eclipse.org/legal/epl-v20.html
  */
 
-// Verify nisse's current behavior with empty values in .mvn/nisse.properties:
-// an empty string is not an unexpanded placeholder, so it IS loaded as-is.
-// (See maveniverse/nisse#194 for future empty-version-guard discussion.)
+// Verify that empty values in .mvn/nisse.properties are skipped with a warning
+// after the empty-value guard added in #194.
 
 def mavenLogFile = new File(basedir, 'build.log')
 assert mavenLogFile.exists() : "Maven log file does not exist"
 
 def logContent = mavenLogFile.text
 
-// Empty value should be loaded (not rejected) — nisse treats it as a valid
-// (albeit empty) property value.  The dump line ends with '=' and no value.
-assert logContent.contains('nisse.jgit.dynamicVersion=') :
-    "Empty fallback property nisse.jgit.dynamicVersion should have been loaded"
+// The empty-value guard (Fix #194) skips blank fallback properties and logs
+// a warning.  The property must NOT appear in the nisse dump output.
+assert !logContent.contains('nisse.jgit.dynamicVersion=') :
+    "Empty fallback property nisse.jgit.dynamicVersion should have been skipped"
+
+// A warning should be logged about the skipped empty property
+assert logContent.contains('Skipping empty fallback property') :
+    "Expected a warning about skipping the empty fallback property"
 
 // The build must succeed (POM uses a hardcoded version, not the empty property)
 assert logContent.contains('BUILD SUCCESS') : "Build did not succeed"
