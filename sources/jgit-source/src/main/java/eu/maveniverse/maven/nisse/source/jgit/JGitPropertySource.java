@@ -45,6 +45,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
@@ -654,30 +655,30 @@ public class JGitPropertySource implements PropertySource {
 
         int commitCount = 0;
 
-        Iterable<RevCommit> commits =
-                head != null ? git.log().add(head).call() : git.log().call();
-        List<RevCommit> all = new ArrayList<>();
-        for (RevCommit c : commits) {
-            all.add(c);
-        }
-        Collections.reverse(all);
-
-        for (RevCommit c : all) {
-            String message = c.getFullMessage();
-            if (message.contains(matchMajor)) {
-                major++;
-                minor = 0;
-                patch = 0;
-                commitCount = 0;
-            } else if (message.contains(matchMinor)) {
-                minor++;
-                patch = 0;
-                commitCount = 0;
-            } else if (message.contains(matchPatch)) {
-                patch++;
-                commitCount = 0;
-            } else {
-                commitCount++;
+        try (RevWalk walk = new RevWalk(git.getRepository())) {
+            walk.sort(RevSort.REVERSE);
+            ObjectId startId = head != null ? head : git.getRepository().resolve("HEAD");
+            if (startId != null) {
+                walk.markStart(walk.parseCommit(startId));
+            }
+            RevCommit c;
+            while ((c = walk.next()) != null) {
+                String message = c.getFullMessage();
+                if (message.contains(matchMajor)) {
+                    major++;
+                    minor = 0;
+                    patch = 0;
+                    commitCount = 0;
+                } else if (message.contains(matchMinor)) {
+                    minor++;
+                    patch = 0;
+                    commitCount = 0;
+                } else if (message.contains(matchPatch)) {
+                    patch++;
+                    commitCount = 0;
+                } else {
+                    commitCount++;
+                }
             }
         }
 
