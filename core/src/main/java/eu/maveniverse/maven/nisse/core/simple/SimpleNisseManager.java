@@ -94,6 +94,13 @@ public class SimpleNisseManager implements NisseManager {
                 if (isUnexpandedPlaceholder(value)) {
                     skipped++;
                     logger.debug("Skipping unexpanded export-subst placeholder: {}={}", key, value);
+                } else if (value == null || value.trim().isEmpty()) {
+                    skipped++;
+                    logger.warn(
+                            "Skipping empty fallback property '{}' in {} — "
+                                    + "source archives should be created from tagged commits",
+                            key,
+                            nissePropertiesPath);
                 } else {
                     target.put(key, value);
                     loaded++;

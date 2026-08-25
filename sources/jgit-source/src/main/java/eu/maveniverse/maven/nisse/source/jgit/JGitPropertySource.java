@@ -47,6 +47,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
@@ -271,6 +272,16 @@ public class JGitPropertySource implements PropertySource {
     private static final String DEFAULT_VERSION_HINT_PATTERN = "${version}-SNAPSHOT";
 
     /**
+     * Tag prefix for matching version tags. When empty (default), tags starting with an optional
+     * {@code "v"} followed by a semantic version are matched (e.g. {@code v1.0.0}, {@code 2.3.1}).
+     * Set to a non-empty value like {@code "jline-"} or {@code "camel-"} to match prefixed tags
+     * (e.g. {@code jline-3.28.0}, {@code camel-4.8.0}).
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_TAG_PREFIX = "nisse.source.jgit.tagPrefix";
+
+    private static final String DEFAULT_TAG_PREFIX = "";
+
+    /**
      * Configure the timestamp format for the date property. Supports named patterns:
      * - "git" (default): EEE MMM dd HH:mm:ss yyyy Z
      * - "iso8601": yyyy-MM-dd'T'HH:mm:ss'Z' (UTC)
@@ -352,6 +363,23 @@ public class JGitPropertySource implements PropertySource {
     static String redactCredentials(String url) {
         Matcher m = HTTP_CREDENTIAL_PATTERN.matcher(url);
         return m.matches() ? m.group(1) + m.group(2) : url;
+    }
+
+    /**
+     * Builds a tag version pattern based on the configured tag prefix.
+     * <p>
+     * When {@code tagPrefix} is empty, the returned pattern matches the traditional
+     * {@code v?X.Y.Z} form (backward compatible). When non-empty, the prefix is treated
+     * as a literal string (regex-quoted) and replaces the {@code v?} portion.
+     *
+     * @param tagPrefix the tag prefix from configuration, may be {@code null} or empty
+     * @return a compiled pattern for matching version tags
+     */
+    static Pattern buildTagVersionPattern(String tagPrefix) {
+        if (tagPrefix == null || tagPrefix.isEmpty()) {
+            return TAG_VERSION_PATTERN;
+        }
+        return Pattern.compile("refs/tags/" + Pattern.quote(tagPrefix) + "((\\d+\\.\\d+\\.\\d+)(.*))");
     }
 
     @Override
@@ -557,7 +585,7 @@ public class JGitPropertySource implements PropertySource {
 
         ZonedDateTime commitDateTime = ZonedDateTime.ofInstant(
                 Instant.ofEpochSecond(commit.getCommitTime()),
-                commit.getAuthorIdent().getTimeZone().toZoneId());
+                commit.getCommitterIdent().getTimeZone().toZoneId());
 
         // For ISO-8601 format, convert to UTC
         if ("iso8601".equalsIgnoreCase(dateFormat)) {
@@ -705,30 +733,30 @@ public class JGitPropertySource implements PropertySource {
 
         int commitCount = 0;
 
-        Iterable<RevCommit> commits =
-                head != null ? git.log().add(head).call() : git.log().call();
-        List<RevCommit> all = new ArrayList<>();
-        for (RevCommit c : commits) {
-            all.add(c);
-        }
-        Collections.reverse(all);
-
-        for (RevCommit c : all) {
-            String message = c.getFullMessage();
-            if (message.contains(matchMajor)) {
-                major++;
-                minor = 0;
-                patch = 0;
-                commitCount = 0;
-            } else if (message.contains(matchMinor)) {
-                minor++;
-                patch = 0;
-                commitCount = 0;
-            } else if (message.contains(matchPatch)) {
-                patch++;
-                commitCount = 0;
-            } else {
-                commitCount++;
+        try (RevWalk walk = new RevWalk(git.getRepository())) {
+            walk.sort(RevSort.REVERSE);
+            ObjectId startId = head != null ? head : git.getRepository().resolve("HEAD");
+            if (startId != null) {
+                walk.markStart(walk.parseCommit(startId));
+            }
+            RevCommit c;
+            while ((c = walk.next()) != null) {
+                String message = c.getFullMessage();
+                if (message.contains(matchMajor)) {
+                    major++;
+                    minor = 0;
+                    patch = 0;
+                    commitCount = 0;
+                } else if (message.contains(matchMinor)) {
+                    minor++;
+                    patch = 0;
+                    commitCount = 0;
+                } else if (message.contains(matchPatch)) {
+                    patch++;
+                    commitCount = 0;
+                } else {
+                    commitCount++;
+                }
             }
         }
 
@@ -806,6 +834,22 @@ public class JGitPropertySource implements PropertySource {
             }
             count++;
         }
+
+        // Log when the repository has tags but none matched the version pattern
+        List<Ref> allTags = git.tagList().call();
+        if (!allTags.isEmpty()) {
+            String tagPrefix = configuration
+                    .getConfiguration()
+                    .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_TAG_PREFIX, DEFAULT_TAG_PREFIX);
+            Pattern versionPattern = buildTagVersionPattern(tagPrefix);
+            logger.info(
+                    "Found {} tag(s) but none matched pattern '{}'. Using default version {}."
+                            + " Hint: set nisse.source.jgit.tagPrefix if your tags use a prefix like 'myproject-'.",
+                    allTags.size(),
+                    versionPattern.pattern(),
+                    defaultVersion);
+        }
+
         return new GitVersion(
                 mayAddQualifier(properties, configuration, new VersionInformation(defaultVersion + "-" + count)),
                 false);
@@ -982,6 +1026,10 @@ public class JGitPropertySource implements PropertySource {
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_VERSION_HINT_PATTERN, DEFAULT_VERSION_HINT_PATTERN);
         boolean isCustomPattern = !DEFAULT_VERSION_HINT_PATTERN.equals(versionHintPattern);
 
+        String tagPrefix =
+                configuration.getConfiguration().getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_TAG_PREFIX, DEFAULT_TAG_PREFIX);
+        Pattern versionPattern = buildTagVersionPattern(tagPrefix);
+
         return git.tagList().call().stream()
                 .filter(tag -> {
                     try {
@@ -1005,7 +1053,7 @@ public class JGitPropertySource implements PropertySource {
                         return !isVersionHintTag(configuration, tagName);
                     }
                 })
-                .map(TAG_VERSION_PATTERN::matcher)
+                .map(versionPattern::matcher)
                 .filter(m -> m.matches() && m.groupCount() > 0)
                 .map(m -> m.group(1))
                 .collect(Collectors.toList());
@@ -1127,29 +1175,39 @@ public class JGitPropertySource implements PropertySource {
         logger.debug("Using version hint regex pattern: {}", hintTagPattern.pattern());
 
         Repository repository = git.getRepository();
-        return git.tagList().call().stream()
-                .filter(tag -> hintTagPattern.matcher(tag.getName()).matches())
-                .filter(tag -> isReachableFrom(repository, tag, head))
-                .map(Ref::getName)
-                .map(hintTagPattern::matcher)
-                .filter(m -> m.matches() && m.groupCount() > 0)
-                .map(m -> m.group(1)) // Extract the version part
-                .collect(Collectors.toList());
+        if (head == null) {
+            // No HEAD — treat all matching tags as reachable
+            return git.tagList().call().stream()
+                    .filter(tag -> hintTagPattern.matcher(tag.getName()).matches())
+                    .map(Ref::getName)
+                    .map(hintTagPattern::matcher)
+                    .filter(m -> m.matches() && m.groupCount() > 0)
+                    .map(m -> m.group(1))
+                    .collect(Collectors.toList());
+        }
+        try (RevWalk revWalk = new RevWalk(repository)) {
+            RevCommit headCommit = revWalk.parseCommit(head);
+            return git.tagList().call().stream()
+                    .filter(tag -> hintTagPattern.matcher(tag.getName()).matches())
+                    .filter(tag -> isReachableFrom(revWalk, repository, tag, headCommit))
+                    .map(Ref::getName)
+                    .map(hintTagPattern::matcher)
+                    .filter(m -> m.matches() && m.groupCount() > 0)
+                    .map(m -> m.group(1)) // Extract the version part
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            logger.debug("Could not open RevWalk for reachability checks: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
-    private boolean isReachableFrom(Repository repository, Ref tag, ObjectId head) {
-        if (head == null) {
-            return true;
-        }
+    private boolean isReachableFrom(RevWalk revWalk, Repository repository, Ref tag, RevCommit headCommit) {
         try {
             Ref peeledRef = repository.getRefDatabase().peel(tag);
             ObjectId tagObjectId =
                     (peeledRef.getPeeledObjectId() != null ? peeledRef.getPeeledObjectId() : tag.getObjectId());
-            try (RevWalk revWalk = new RevWalk(repository)) {
-                RevCommit tagCommit = revWalk.parseCommit(tagObjectId);
-                RevCommit headCommit = revWalk.parseCommit(head);
-                return revWalk.isMergedInto(tagCommit, headCommit);
-            }
+            RevCommit tagCommit = revWalk.parseCommit(tagObjectId);
+            return revWalk.isMergedInto(tagCommit, headCommit);
         } catch (IOException e) {
             logger.debug("Could not check reachability for tag {}: {}", tag.getName(), e.getMessage());
             return false;

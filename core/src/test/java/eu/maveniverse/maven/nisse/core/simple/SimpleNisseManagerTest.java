@@ -177,6 +177,31 @@ public class SimpleNisseManagerTest {
     }
 
     @Test
+    void emptyAndBlankValuesAreSkipped(@TempDir Path tempDir) throws IOException {
+        // Simulate what happens when %(describe:tags=true) expands to empty (no reachable tag)
+        Path mvnDir = tempDir.resolve(".mvn");
+        Files.createDirectories(mvnDir);
+        Properties fallbackProps = new Properties();
+        fallbackProps.setProperty("nisse.jgit.dynamicVersion", "");
+        fallbackProps.setProperty("nisse.jgit.date", "   ");
+        fallbackProps.setProperty("nisse.jgit.commit", "abc123"); // valid value
+        writeProperties(mvnDir.resolve("nisse.properties"), fallbackProps);
+
+        SimpleNisseManager snm = new SimpleNisseManager(Arrays.asList());
+
+        SimpleNisseConfiguration conf = SimpleNisseConfiguration.builder()
+                .withSessionRootDirectory(tempDir)
+                .build();
+
+        Map<String, String> allProperties = snm.createProperties(conf);
+        // empty and blank values should be skipped
+        assertFalse(allProperties.containsKey("nisse.jgit.dynamicVersion"));
+        assertFalse(allProperties.containsKey("nisse.jgit.date"));
+        // valid value should still be loaded
+        assertEquals("abc123", allProperties.get("nisse.jgit.commit"));
+    }
+
+    @Test
     void expandedPlaceholderValuesAreLoaded(@TempDir Path tempDir) throws IOException {
         // Simulate what git archive produces: expanded export-subst values
         Path mvnDir = tempDir.resolve(".mvn");
