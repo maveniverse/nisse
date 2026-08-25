@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.eclipse.aether.version.Version;
+import org.eclipse.jgit.lib.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -1526,6 +1527,109 @@ public class JGitPropertySourceTest {
         vi = new VersionInformation("0.5.2-rc1");
         JGitPropertySource.increaseVersion(vi, JGitPropertySource.Bump.MAJOR, true);
         assertEquals("0.6.0", vi.toString());
+    }
+
+    @Test
+    void testBuildNumberUsesReachabilityCountAcrossMerge(@TempDir Path tempDir) throws Exception {
+        // The build number must use the reachability-based commit count (tag..HEAD), not the
+        // date-ordered walk count, so that commits on a merged branch are counted correctly.
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "conventionalCommits");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+
+        // a branch cut BEFORE the release
+        exec(repo, "git", "checkout", "-b", "side");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat: side feature");
+
+        // the release happens on master afterwards
+        exec(repo, "git", "checkout", "master");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: release");
+        exec(repo, "git", "tag", "1.2.3");
+
+        // ...and only then is the branch merged
+        exec(repo, "git", "merge", "--no-ff", "-m", "chore: merge side", "side");
+
+        // tag..HEAD contains 2 reachable commits: the merge commit and the side feature commit.
+        // With conventionalCommits, the feat: bumps minor -> 1.3.0 and the build number is 2.
+        assertDynamicVersion("1.3.0-2", source, repo, userProps);
+    }
+
+    @Test
+    void testTabAfterColonIsNotAConventionalCommit() {
+        // The specification requires a literal space after the colon; a tab must not match.
+        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom("feat:\ta description"));
+        assertEquals(JGitPropertySource.Bump.PATCH, JGitPropertySource.bumpFrom("fix:\tanother"));
+    }
+
+    @Test
+    void testInvalidVersionIncrementFallsToPatch(@TempDir Path tempDir) throws Exception {
+        // An unknown versionIncrement value should fall back to patch rather than silently doing nothing
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "bogus");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.2.3");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: breaking");
+
+        // "bogus" falls back to "patch", so the version increments the patch only
+        assertDynamicVersion("1.2.4", source, repo, userProps);
+    }
+
+    @Test
+    void testWhitespaceVersionIncrementIsTrimmed(@TempDir Path tempDir) throws Exception {
+        // Whitespace around the value should be trimmed and matched case-insensitively
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.versionIncrement", "  None  ");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.2.3");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "feat!: breaking");
+
+        // "  None  " should be trimmed and lowered to "none"
+        assertDynamicVersion("1.2.3", source, repo, userProps);
+    }
+
+    @Test
+    void testSubclassOverrideOfGetVersionFromGitIsRespected(@TempDir Path tempDir) throws Exception {
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.appendBuildNumber", "false");
+        userProps.put("nisse.source.jgit.appendSnapshot", "false");
+
+        // A subclass that overrides the version resolution hook
+        JGitPropertySource source = new JGitPropertySource() {
+            @Override
+            protected GitVersion getVersionFromGit(
+                    Map<String, String> properties,
+                    NisseConfiguration configuration,
+                    org.eclipse.jgit.api.Git git,
+                    ObjectId head) {
+                return new GitVersion(new VersionInformation("9.9.9"), true);
+            }
+        };
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.2.3");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix: a bug");
+
+        // The subclass override should be used, not the default git resolution
+        assertDynamicVersion("9.9.9", source, repo, userProps);
     }
 
     private static Path newRepo(Path dir) throws Exception {

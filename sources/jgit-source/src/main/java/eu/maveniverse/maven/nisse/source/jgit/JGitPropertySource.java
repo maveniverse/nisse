@@ -307,7 +307,7 @@ public class JGitPropertySource implements PropertySource {
      * breaking change.
      */
     private static final Pattern CONVENTIONAL_COMMIT_SUBJECT =
-            Pattern.compile("(?<type>[a-zA-Z]+)(\\([^)]+\\))?(?<breaking>!)?:\\s");
+            Pattern.compile("(?<type>[a-zA-Z]+)(\\([^)]+\\))?(?<breaking>!)?: ");
 
     /**
      * The Conventional Commits breaking change footer. The specification allows both spellings.
@@ -652,8 +652,9 @@ public class JGitPropertySource implements PropertySource {
             vi = new VersionInformation(useVersion.get());
             logger.debug("Using explicit version from useVersion property: {}", useVersion.get());
         } else {
-            // First, get version from git history (regular release tags)
-            GitVersion gitVersion = resolveVersionFromGit(properties, configuration, git, head);
+            // First, get version from git history (regular release tags).
+            // Routed through the protected hook so subclasses can override version resolution.
+            GitVersion gitVersion = getVersionFromGit(properties, configuration, git, head);
             VersionInformation gitHistoryVersion = gitVersion.getVersion();
             logger.debug("Version from git history: {}", gitHistoryVersion.toString());
 
@@ -785,16 +786,19 @@ public class JGitPropertySource implements PropertySource {
         return result;
     }
 
-    protected VersionInformation getVersionFromGit(
+    /**
+     * Resolves the version from git history, reporting both the version and whether it came from a release tag.
+     * <p>
+     * This is the primary extension hook for subclasses that need to customise version resolution.
+     * Override this method instead of manipulating {@link #resolveDynamicVersion} directly.
+     */
+    protected GitVersion getVersionFromGit(
             Map<String, String> properties, NisseConfiguration configuration, Git git, ObjectId head)
             throws GitAPIException, IOException {
-        return resolveVersionFromGit(properties, configuration, git, head).getVersion();
+        return resolveVersionFromGit(properties, configuration, git, head);
     }
 
-    /**
-     * As {@link #getVersionFromGit}, but also reporting whether a release tag was found at all.
-     */
-    protected GitVersion resolveVersionFromGit(
+    private GitVersion resolveVersionFromGit(
             Map<String, String> properties, NisseConfiguration configuration, Git git, ObjectId head)
             throws GitAPIException, IOException {
         RevCommit lastCommit = getLastCommit(git, head);
@@ -827,7 +831,7 @@ public class JGitPropertySource implements PropertySource {
                             .getConfiguration()
                             .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_BUILD_NUMBER, DEFAULT_APPEND_BUILD_NUMBER));
                     if (appendBuildNumber) {
-                        vi.setBuildNumber(count);
+                        vi.setBuildNumber(commitCountSince(git, head, commit));
                     }
                     return new GitVersion(mayAddQualifier(properties, configuration, vi), true);
                 }
@@ -866,7 +870,19 @@ public class JGitPropertySource implements PropertySource {
     private String resolveVersionIncrement(Map<String, String> config) {
         String explicit = config.get(JGIT_CONF_SYSTEM_PROPERTY_VERSION_INCREMENT);
         if (explicit != null) {
-            return explicit.toLowerCase(Locale.ROOT);
+            String normalized = explicit.trim().toLowerCase(Locale.ROOT);
+            if (normalized.isEmpty()) {
+                logger.warn("Empty versionIncrement value, falling back to '{}'", VERSION_INCREMENT_PATCH);
+                return VERSION_INCREMENT_PATCH;
+            }
+            if (!VERSION_INCREMENT_PATCH.equals(normalized)
+                    && !VERSION_INCREMENT_NONE.equals(normalized)
+                    && !VERSION_INCREMENT_CONVENTIONAL_COMMITS.equals(normalized)) {
+                logger.warn(
+                        "Unknown versionIncrement value '{}', falling back to '{}'", explicit, VERSION_INCREMENT_PATCH);
+                return VERSION_INCREMENT_PATCH;
+            }
+            return normalized;
         }
         // Deprecated fallback: honour old booleans when the new property is absent
         if (Boolean.parseBoolean(
@@ -896,6 +912,19 @@ public class JGitPropertySource implements PropertySource {
             messages.add(commit.getFullMessage());
         }
         return messages;
+    }
+
+    /**
+     * The number of commits reachable from {@code head} but not from {@code tagged}: the count form of
+     * {@link #messagesSince(Git, ObjectId, RevCommit)}.
+     */
+    private int commitCountSince(Git git, ObjectId head, RevCommit tagged) throws GitAPIException, IOException {
+        ObjectId until = head != null ? head : git.getRepository().resolve(Constants.HEAD);
+        int count = 0;
+        for (RevCommit ignored : git.log().add(until).not(tagged.getId()).call()) {
+            count++;
+        }
+        return count;
     }
 
     /**
