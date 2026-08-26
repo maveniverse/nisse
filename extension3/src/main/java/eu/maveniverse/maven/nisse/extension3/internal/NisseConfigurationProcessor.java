@@ -22,8 +22,6 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -96,17 +94,15 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 request.getUserProperties());
     }
 
-    /** Regex that matches {@code ${name}} variable references. */
-    private static final Pattern VARIABLE_PATTERN = Pattern.compile("\\$\\{([^}]+)}");
-
     /**
      * Loads {@code nisse.*} properties from {@code .mvn/maven-user.properties} into
      * user properties.  This bridges the gap between Maven 3 (which ignores the file)
      * and Maven 4 (which auto-loads <em>and interpolates</em> it).
      * <p>
-     * Values undergo the same interpolation that Maven 4 performs at load time:
-     * {@code ${session.rootDirectory}}, system properties and already-set user
-     * properties are resolved; unresolvable expressions are left as-is.
+     * Values are interpolated using {@link NisseInterpolator} (adapted from Maven 4's
+     * {@code DefaultInterpolator}) which supports default values ({@code ${var:-default}}),
+     * alternative values ({@code ${var:+alt}}), nested interpolation, escape handling,
+     * and cycle detection.
      * <p>
      * Only keys with the {@code nisse.} prefix are considered; unexpanded git
      * {@code export-subst} placeholders ({@code $Format:…$}) are silently skipped.
@@ -119,27 +115,31 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
             return;
         }
 
-        // Build the interpolation context — same sources Maven 4 uses in
-        // BaseParser.populateUserProperties():
-        //   1. session.rootDirectory / session.topDirectory  (path placeholders)
-        //   2. system properties                             (user.home, etc.)
-        //   3. user properties                               (-D flags)
-        Map<String, String> interpolationContext = new HashMap<>();
-        for (String key : systemProperties.stringPropertyNames()) {
-            interpolationContext.put(key, systemProperties.getProperty(key));
-        }
-        for (String key : userProperties.stringPropertyNames()) {
-            interpolationContext.put(key, userProperties.getProperty(key));
-        }
-        String rootDir = sessionRoot.toString();
-        interpolationContext.put("session.rootDirectory", rootDir);
-        interpolationContext.put("session.topDirectory", rootDir);
-        interpolationContext.put(
-                "maven.project.conf", sessionRoot.resolve(".mvn").toString());
-
         try (InputStream in = Files.newInputStream(mavenUserPropsPath)) {
             Properties props = new Properties();
             props.load(in);
+
+            // Build the interpolation context — same sources Maven 4 uses in
+            // BaseParser.populateUserProperties() via MavenPropertiesLoader:
+            //   1. properties from the file itself   (cross-references)
+            //   2. system properties                 (user.home, etc.)
+            //   3. user properties                   (-D flags, nisse-computed)
+            //   4. session path placeholders
+            Map<String, String> context = new HashMap<>();
+            for (String key : props.stringPropertyNames()) {
+                context.put(key, props.getProperty(key));
+            }
+            for (String key : systemProperties.stringPropertyNames()) {
+                context.put(key, systemProperties.getProperty(key));
+            }
+            for (String key : userProperties.stringPropertyNames()) {
+                context.put(key, userProperties.getProperty(key));
+            }
+            String rootDir = sessionRoot.toString();
+            context.put("session.rootDirectory", rootDir);
+            context.put("session.topDirectory", rootDir);
+            context.put("maven.project.conf", sessionRoot.resolve(".mvn").toString());
+
             int loaded = 0;
             for (String key : props.stringPropertyNames()) {
                 if (!key.startsWith(NisseConfiguration.PROPERTY_PREFIX)) {
@@ -152,7 +152,7 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 if (isUnexpandedPlaceholder(value)) {
                     continue;
                 }
-                value = interpolate(value, interpolationContext);
+                value = NisseInterpolator.substVars(value, key, null, context, null, false);
                 if (!userProperties.containsKey(key)) {
                     userProperties.setProperty(key, value);
                     loaded++;
@@ -164,34 +164,6 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
         } catch (IOException e) {
             logger.warn("Failed to read maven-user.properties from {}: {}", mavenUserPropsPath, e.getMessage());
         }
-    }
-
-    /**
-     * Interpolates {@code ${name}} references in {@code value} against the given
-     * context map.  Mirrors Maven 4's {@code DefaultInterpolator.substVars()}:
-     * resolvable variables are replaced; unresolvable ones are left as-is.
-     */
-    static String interpolate(String value, Map<String, String> context) {
-        if (value == null || !value.contains("${")) {
-            return value;
-        }
-        Matcher matcher = VARIABLE_PATTERN.matcher(value);
-        StringBuilder sb = new StringBuilder();
-        int last = 0;
-        while (matcher.find()) {
-            sb.append(value, last, matcher.start());
-            String varName = matcher.group(1);
-            String resolved = context.get(varName);
-            if (resolved != null) {
-                sb.append(resolved);
-            } else {
-                // leave unresolvable expression as-is (matches Maven 4 behaviour)
-                sb.append(matcher.group());
-            }
-            last = matcher.end();
-        }
-        sb.append(value, last, value.length());
-        return sb.toString();
     }
 
     /**
