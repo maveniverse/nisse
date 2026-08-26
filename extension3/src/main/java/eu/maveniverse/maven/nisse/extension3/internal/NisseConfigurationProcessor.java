@@ -15,12 +15,12 @@ import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.Version;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Properties;
-import java.util.function.UnaryOperator;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -85,63 +85,34 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
         // Load nisse-prefixed properties from that file so that export-subst values
         // (expanded by `git archive`) are available to ModelVersionProcessor even
         // when the jgit source is inactive (no .git directory in source archives).
-        // Values are interpolated to match Maven 4 behaviour (session.rootDirectory,
-        // system properties, user properties).
-        loadMavenUserProperties(
-                request.getMultiModuleProjectDirectory().toPath(),
-                request.getSystemProperties(),
-                request.getUserProperties());
+        loadMavenUserProperties(request.getMultiModuleProjectDirectory().toPath(), request.getUserProperties());
     }
 
     /**
      * Loads {@code nisse.*} properties from {@code .mvn/maven-user.properties} into
-     * user properties.  This bridges the gap between Maven 3 (which ignores the file)
-     * and Maven 4 (which auto-loads <em>and interpolates</em> it).
+     * user properties. This bridges the gap between Maven 3 (which ignores the file)
+     * and Maven 4 (which auto-loads it). Only keys with the {@code nisse.} prefix are
+     * considered; values that still contain unresolved placeholders (git
+     * {@code export-subst} or Maven {@code ${…}} expressions) are silently skipped
+     * since we do not perform interpolation here.
      * <p>
-     * Uses {@link MavenPropertiesLoader} (adapted from Maven 4's property loading
-     * infrastructure) which supports {@code ${includes}} directives,
-     * {@code maven.override.*} prefixes, value trimming, UTF-8 loading, and full
-     * variable substitution via {@link NisseInterpolator} (default values, alternative
-     * values, nested interpolation, escape handling, cycle detection).
-     * <p>
-     * Only keys with the {@code nisse.} prefix are considered; unexpanded git
-     * {@code export-subst} placeholders ({@code $Format:…$}) are silently skipped.
      * Properties already present in {@code userProperties} (from {@code -D} flags or
      * from nisse's own property sources) are never overwritten.
      */
-    private void loadMavenUserProperties(Path sessionRoot, Properties systemProperties, Properties userProperties) {
+    private void loadMavenUserProperties(Path sessionRoot, Properties userProperties) {
         Path mavenUserPropsPath = sessionRoot.resolve(".mvn").resolve("maven-user.properties");
         if (!Files.isRegularFile(mavenUserPropsPath)) {
             return;
         }
-
-        try {
-            String rootDir = sessionRoot.toString();
-            // Callback for external variable resolution — same sources Maven 4 uses
-            // in BaseParser.populateUserProperties() via MavenPropertiesLoader
-            UnaryOperator<String> callback = key -> {
-                if ("session.rootDirectory".equals(key) || "session.topDirectory".equals(key)) {
-                    return rootDir;
-                }
-                if ("maven.project.conf".equals(key)) {
-                    return sessionRoot.resolve(".mvn").toString();
-                }
-                String v = userProperties.getProperty(key);
-                if (v == null) {
-                    v = systemProperties.getProperty(key);
-                }
-                return v;
-            };
-
-            Properties loaded = new Properties();
-            MavenPropertiesLoader.loadProperties(loaded, mavenUserPropsPath, callback, false);
-
-            int count = 0;
-            for (String key : loaded.stringPropertyNames()) {
+        try (InputStream in = Files.newInputStream(mavenUserPropsPath)) {
+            Properties props = new Properties();
+            props.load(in);
+            int loaded = 0;
+            for (String key : props.stringPropertyNames()) {
                 if (!key.startsWith(NisseConfiguration.PROPERTY_PREFIX)) {
                     continue;
                 }
-                String value = loaded.getProperty(key);
+                String value = props.getProperty(key);
                 if (value == null || value.trim().isEmpty()) {
                     continue;
                 }
@@ -150,11 +121,11 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 }
                 if (!userProperties.containsKey(key)) {
                     userProperties.setProperty(key, value);
-                    count++;
+                    loaded++;
                 }
             }
-            if (count > 0) {
-                logger.debug("Loaded {} nisse properties from {} (Maven 3 compatibility)", count, mavenUserPropsPath);
+            if (loaded > 0) {
+                logger.debug("Loaded {} nisse properties from {} (Maven 3 compatibility)", loaded, mavenUserPropsPath);
             }
         } catch (IOException e) {
             logger.warn("Failed to read maven-user.properties from {}: {}", mavenUserPropsPath, e.getMessage());
@@ -163,8 +134,8 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
 
     /**
      * Returns {@code true} if the value looks like an unexpanded placeholder:
-     * either a git {@code export-subst} pattern ({@code $Format:…$}) or a Maven
-     * interpolation expression ({@code ${…}}).
+     * either a git {@code export-subst} pattern ({@code $Format:…$}) or any
+     * value that still contains an unresolved {@code ${…}} expression.
      */
     private static boolean isUnexpandedPlaceholder(String value) {
         if (value == null) {
@@ -173,7 +144,7 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
         if (value.startsWith("$Format:") && value.endsWith("$")) {
             return true;
         }
-        if (value.startsWith("${") && value.endsWith("}")) {
+        if (value.contains("${")) {
             return true;
         }
         return false;
