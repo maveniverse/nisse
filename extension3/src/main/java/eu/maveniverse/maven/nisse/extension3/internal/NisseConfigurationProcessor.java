@@ -14,6 +14,10 @@ import eu.maveniverse.maven.nisse.core.NisseManager;
 import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.Version;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Properties;
@@ -76,5 +80,71 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 request.getUserProperties().setProperty(k, v);
             }
         });
+
+        // Maven 3 does NOT auto-load .mvn/maven-user.properties (unlike Maven 4).
+        // Load nisse-prefixed properties from that file so that export-subst values
+        // (expanded by `git archive`) are available to ModelVersionProcessor even
+        // when the jgit source is inactive (no .git directory in source archives).
+        loadMavenUserProperties(request.getMultiModuleProjectDirectory().toPath(), request.getUserProperties());
+    }
+
+    /**
+     * Loads {@code nisse.*} properties from {@code .mvn/maven-user.properties} into
+     * user properties. This bridges the gap between Maven 3 (which ignores the file)
+     * and Maven 4 (which auto-loads it). Only keys with the {@code nisse.} prefix are
+     * considered; unexpanded git {@code export-subst} placeholders and Maven
+     * interpolation expressions are silently skipped.
+     * <p>
+     * Properties already present in {@code userProperties} (from {@code -D} flags or
+     * from nisse's own property sources) are never overwritten.
+     */
+    private void loadMavenUserProperties(Path sessionRoot, Properties userProperties) {
+        Path mavenUserPropsPath = sessionRoot.resolve(".mvn").resolve("maven-user.properties");
+        if (!Files.isRegularFile(mavenUserPropsPath)) {
+            return;
+        }
+        try (InputStream in = Files.newInputStream(mavenUserPropsPath)) {
+            Properties props = new Properties();
+            props.load(in);
+            int loaded = 0;
+            for (String key : props.stringPropertyNames()) {
+                if (!key.startsWith(NisseConfiguration.PROPERTY_PREFIX)) {
+                    continue;
+                }
+                String value = props.getProperty(key);
+                if (isUnexpandedPlaceholder(value)
+                        || value == null
+                        || value.trim().isEmpty()) {
+                    continue;
+                }
+                if (!userProperties.containsKey(key)) {
+                    userProperties.setProperty(key, value);
+                    loaded++;
+                }
+            }
+            if (loaded > 0) {
+                logger.debug("Loaded {} nisse properties from {} (Maven 3 compatibility)", loaded, mavenUserPropsPath);
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to read maven-user.properties from {}: {}", mavenUserPropsPath, e.getMessage());
+        }
+    }
+
+    /**
+     * Returns {@code true} if the value looks like an unexpanded placeholder:
+     * either a git {@code export-subst} pattern ({@code $Format:…$}) or a Maven
+     * interpolation expression ({@code ${…}}).
+     */
+    private static boolean isUnexpandedPlaceholder(String value) {
+        if (value == null) {
+            return false;
+        }
+        if (value.startsWith("$Format:") && value.endsWith("$")) {
+            return true;
+        }
+        if (value.startsWith("${") && value.endsWith("}")) {
+            return true;
+        }
+        return false;
     }
 }
