@@ -1147,6 +1147,192 @@ public class JGitPropertySourceTest {
     }
 
     @Test
+    void testPresetSnapshot(@TempDir Path tempDir) throws Exception {
+        // Snapshot preset: increment patch, append build number, append SNAPSHOT, no branch, no dirty
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.dynamicVersion.preset", "snapshot");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.0.0");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix: a bug");
+
+        assertDynamicVersion("1.0.1-1-SNAPSHOT", source, repo, userProps);
+    }
+
+    @Test
+    void testPresetCi(@TempDir Path tempDir) throws Exception {
+        // CI preset: increment patch, append build number, append branch name, no SNAPSHOT
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.dynamicVersion.preset", "ci");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.0.0");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix: a bug");
+
+        assertDynamicVersion("1.0.1-1-master", source, repo, userProps);
+    }
+
+    @Test
+    void testPresetRelease(@TempDir Path tempDir) throws Exception {
+        // Release preset: exact tag version, no increment, no qualifiers
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.dynamicVersion.preset", "release");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.0.0");
+
+        // On the tag itself: exact version
+        assertDynamicVersion("1.0.0", source, repo, userProps);
+
+        // Even after additional commits: no increment (versionIncrement=none), no qualifiers
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix: a bug");
+        assertDynamicVersion("1.0.0", source, repo, userProps);
+    }
+
+    @Test
+    void testPresetDirtyClean(@TempDir Path tempDir) throws Exception {
+        // Dirty preset on a clean repo: like snapshot, no DIRTY qualifier
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.dynamicVersion.preset", "dirty");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.0.0");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix: a bug");
+
+        // Clean repo: same as snapshot (no DIRTY qualifier)
+        assertDynamicVersion("1.0.1-1-SNAPSHOT", source, repo, userProps);
+    }
+
+    @Test
+    void testPresetDirtyUncommitted(@TempDir Path tempDir) throws Exception {
+        // Dirty preset with uncommitted changes: like snapshot + DIRTY qualifier
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.dynamicVersion.preset", "dirty");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        Files.write(repo.resolve("file.txt"), "v1".getBytes(StandardCharsets.UTF_8));
+        exec(repo, "git", "add", "file.txt");
+        exec(repo, "git", "commit", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.0.0");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix: a bug");
+
+        // Create uncommitted changes
+        Files.write(repo.resolve("file.txt"), "dirty".getBytes(StandardCharsets.UTF_8));
+
+        assertDynamicVersion("1.0.1-1-DIRTY-SNAPSHOT", source, repo, userProps);
+    }
+
+    @Test
+    void testPresetOverriddenByExplicitProperty(@TempDir Path tempDir) throws Exception {
+        // Explicit properties override preset defaults
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.dynamicVersion.preset", "ci");
+        // Override: disable branch name even though ci preset enables it
+        userProps.put("nisse.source.jgit.appendBranchName", "false");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.0.0");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix: a bug");
+
+        // CI preset would add branch name, but the explicit override disables it
+        assertDynamicVersion("1.0.1-1", source, repo, userProps);
+    }
+
+    @Test
+    void testPresetCaseInsensitive(@TempDir Path tempDir) throws Exception {
+        // Preset name should be case-insensitive
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.dynamicVersion.preset", "RELEASE");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "2.0.0");
+
+        assertDynamicVersion("2.0.0", source, repo, userProps);
+    }
+
+    @Test
+    void testPresetUnknownIgnored(@TempDir Path tempDir) throws Exception {
+        // Unknown preset name should be ignored (fall back to default behavior)
+        Map<String, String> userProps = new HashMap<>();
+        userProps.put("nisse.source.jgit.dynamicVersion", "true");
+        userProps.put("nisse.source.jgit.dynamicVersion.preset", "bogus");
+        JGitPropertySource source = new JGitPropertySource();
+
+        Path repo = newRepo(tempDir);
+        exec(repo, "git", "commit", "--allow-empty", "-m", "chore: base");
+        exec(repo, "git", "tag", "1.0.0");
+        exec(repo, "git", "commit", "--allow-empty", "-m", "fix: a bug");
+
+        // Should behave as if no preset was set (default behavior = snapshot-like)
+        assertDynamicVersion("1.0.1-1-SNAPSHOT", source, repo, userProps);
+    }
+
+    @Test
+    void testPresetFromString() {
+        assertEquals(DynamicVersionPreset.SNAPSHOT, DynamicVersionPreset.fromString("snapshot"));
+        assertEquals(DynamicVersionPreset.CI, DynamicVersionPreset.fromString("ci"));
+        assertEquals(DynamicVersionPreset.RELEASE, DynamicVersionPreset.fromString("release"));
+        assertEquals(DynamicVersionPreset.DIRTY, DynamicVersionPreset.fromString("dirty"));
+        assertEquals(DynamicVersionPreset.SNAPSHOT, DynamicVersionPreset.fromString("SNAPSHOT"));
+        assertEquals(DynamicVersionPreset.CI, DynamicVersionPreset.fromString("  CI  "));
+        assertNull(DynamicVersionPreset.fromString("bogus"));
+        assertNull(DynamicVersionPreset.fromString(""));
+        assertNull(DynamicVersionPreset.fromString(null));
+    }
+
+    @Test
+    void testPresetDefaults() {
+        // Verify each preset returns the expected default values
+        Map<String, String> snapshot = DynamicVersionPreset.SNAPSHOT.defaults();
+        assertEquals("true", snapshot.get("nisse.source.jgit.increasePatchVersion"));
+        assertEquals("true", snapshot.get("nisse.source.jgit.appendBuildNumber"));
+        assertEquals("true", snapshot.get("nisse.source.jgit.appendSnapshot"));
+        assertEquals("false", snapshot.get("nisse.source.jgit.appendBranchName"));
+        assertEquals("false", snapshot.get("nisse.source.jgit.appendDirty"));
+
+        Map<String, String> ci = DynamicVersionPreset.CI.defaults();
+        assertEquals("true", ci.get("nisse.source.jgit.increasePatchVersion"));
+        assertEquals("true", ci.get("nisse.source.jgit.appendBuildNumber"));
+        assertEquals("false", ci.get("nisse.source.jgit.appendSnapshot"));
+        assertEquals("true", ci.get("nisse.source.jgit.appendBranchName"));
+        assertEquals("false", ci.get("nisse.source.jgit.appendDirty"));
+
+        Map<String, String> release = DynamicVersionPreset.RELEASE.defaults();
+        assertEquals("none", release.get("nisse.source.jgit.versionIncrement"));
+        assertEquals("false", release.get("nisse.source.jgit.appendBuildNumber"));
+        assertEquals("false", release.get("nisse.source.jgit.appendSnapshot"));
+        assertEquals("false", release.get("nisse.source.jgit.appendBranchName"));
+        assertEquals("false", release.get("nisse.source.jgit.appendDirty"));
+
+        Map<String, String> dirty = DynamicVersionPreset.DIRTY.defaults();
+        assertEquals("true", dirty.get("nisse.source.jgit.increasePatchVersion"));
+        assertEquals("true", dirty.get("nisse.source.jgit.appendBuildNumber"));
+        assertEquals("true", dirty.get("nisse.source.jgit.appendSnapshot"));
+        assertEquals("false", dirty.get("nisse.source.jgit.appendBranchName"));
+        assertEquals("true", dirty.get("nisse.source.jgit.appendDirty"));
+    }
+
+    @Test
     void sanitizeBranchName() {
         assertEquals("master", JGitPropertySource.sanitizeBranchName("master"));
         assertEquals("feat-cool-feature-01", JGitPropertySource.sanitizeBranchName("feat/cool-feature-01"));

@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -101,6 +102,17 @@ public class JGitPropertySource implements PropertySource {
     private static final String JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION = "nisse.source.jgit.dynamicVersion";
 
     private static final String DEFAULT_DYNAMIC_VERSION = Boolean.FALSE.toString();
+
+    /**
+     * Named preset for dynamic version configuration. Sets sensible defaults for all dynamic version
+     * properties at once. Individual properties always override the preset.
+     * <p>
+     * Known presets: {@code snapshot} (default behavior), {@code ci}, {@code release}, {@code dirty}.
+     *
+     * @see DynamicVersionPreset
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION_PRESET =
+            "nisse.source.jgit.dynamicVersion.preset";
 
     /**
      * Set to {@code true} to enable "counting version" feature, it adds the
@@ -460,7 +472,9 @@ public class JGitPropertySource implements PropertySource {
                     if (Boolean.parseBoolean(configuration
                             .getConfiguration()
                             .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION, DEFAULT_DYNAMIC_VERSION))) {
-                        result.put(JGIT_DYNAMIC_VERSION, resolveDynamicVersion(result, configuration, git, head));
+                        NisseConfiguration effectiveConfiguration = applyPresetDefaults(configuration);
+                        result.put(
+                                JGIT_DYNAMIC_VERSION, resolveDynamicVersion(result, effectiveConfiguration, git, head));
                     }
                     if (Boolean.parseBoolean(configuration
                             .getConfiguration()
@@ -638,6 +652,79 @@ public class JGitPropertySource implements PropertySource {
                         dateFormat);
                 return DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy Z", Locale.ENGLISH);
         }
+    }
+
+    /**
+     * If a {@link DynamicVersionPreset} is configured, returns a configuration whose
+     * {@link NisseConfiguration#getConfiguration()} map contains the preset's defaults
+     * for any dynamic-version property not explicitly set by the user. When no preset
+     * is configured, the original configuration is returned unchanged.
+     *
+     * @param configuration the original configuration
+     * @return the effective configuration (may be a delegate wrapping the original)
+     */
+    NisseConfiguration applyPresetDefaults(NisseConfiguration configuration) {
+        String presetName = configuration.getConfiguration().get(JGIT_CONF_SYSTEM_PROPERTY_DYNAMIC_VERSION_PRESET);
+        if (presetName == null) {
+            return configuration;
+        }
+        DynamicVersionPreset preset = DynamicVersionPreset.fromString(presetName);
+        if (preset == null) {
+            logger.warn(
+                    "Unknown dynamicVersion preset '{}', ignoring. Known presets: snapshot, ci, release, dirty",
+                    presetName);
+            return configuration;
+        }
+
+        logger.debug("Applying dynamicVersion preset '{}'", preset.name().toLowerCase(Locale.ROOT));
+        Map<String, String> presetDefaults = preset.defaults();
+        Map<String, String> effectiveConfig = new HashMap<>(configuration.getConfiguration());
+        for (Map.Entry<String, String> entry : presetDefaults.entrySet()) {
+            effectiveConfig.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+        Map<String, String> unmodifiableConfig = Collections.unmodifiableMap(effectiveConfig);
+
+        return new NisseConfiguration() {
+            @Override
+            public Map<String, String> getSystemProperties() {
+                return configuration.getSystemProperties();
+            }
+
+            @Override
+            public Map<String, String> getUserProperties() {
+                return configuration.getUserProperties();
+            }
+
+            @Override
+            public Map<String, String> getConfiguration() {
+                return unmodifiableConfig;
+            }
+
+            @Override
+            public Path getCurrentWorkingDirectory() {
+                return configuration.getCurrentWorkingDirectory();
+            }
+
+            @Override
+            public Path getSessionRootDirectory() {
+                return configuration.getSessionRootDirectory();
+            }
+
+            @Override
+            public boolean isPropertySourceActive(PropertySource source) {
+                return configuration.isPropertySourceActive(source);
+            }
+
+            @Override
+            public Collection<String> getInlinedPropertyKeys() {
+                return configuration.getInlinedPropertyKeys();
+            }
+
+            @Override
+            public BiFunction<PropertySource, String, List<String>> propertyKeyNamingStrategy() {
+                return configuration.propertyKeyNamingStrategy();
+            }
+        };
     }
 
     String resolveDynamicVersion(
