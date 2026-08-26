@@ -116,8 +116,14 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
                 if (value == null || value.trim().isEmpty()) {
                     continue;
                 }
-                if (isUnexpandedPlaceholder(value)) {
+                if (isUnexpandedExportSubst(value)) {
                     continue;
+                }
+                if (value.contains("${")) {
+                    throw new IllegalStateException("Property " + key + " in " + mavenUserPropsPath
+                            + " contains unresolved placeholder: " + value
+                            + ". Maven 3 does not interpolate maven-user.properties;"
+                            + " use literal values or upgrade to Maven 4.");
                 }
                 if (!userProperties.containsKey(key)) {
                     userProperties.setProperty(key, value);
@@ -133,20 +139,11 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
     }
 
     /**
-     * Returns {@code true} if the value looks like an unexpanded placeholder:
-     * either a git {@code export-subst} pattern ({@code $Format:…$}) or any
-     * value that still contains an unresolved {@code ${…}} expression.
+     * Returns {@code true} if the value is an unexpanded git {@code export-subst}
+     * pattern ({@code $Format:…$}).  This is expected in non-archive builds where
+     * the jgit source is active and provides the values directly.
      */
-    private static boolean isUnexpandedPlaceholder(String value) {
-        if (value == null) {
-            return false;
-        }
-        if (value.startsWith("$Format:") && value.endsWith("$")) {
-            return true;
-        }
-        if (value.contains("${")) {
-            return true;
-        }
-        return false;
+    private static boolean isUnexpandedExportSubst(String value) {
+        return value != null && value.startsWith("$Format:") && value.endsWith("$");
     }
 }
