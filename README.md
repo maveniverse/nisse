@@ -64,14 +64,14 @@ strings from your POM. This works with both Maven 3 and Maven 4.
     <extension>
         <groupId>eu.maveniverse.maven.nisse</groupId>
         <artifactId>extension</artifactId>
-        <version>${version.nisse}</version>
+        <version>0.9.8</version><!-- replace with latest Nisse version -->
     </extension>
 </extensions>
 ```
 
 **2. `.mvn/maven.config`** — enable dynamic versioning:
 
-```
+```text
 -Dnisse.source.jgit.dynamicVersion=true
 ```
 

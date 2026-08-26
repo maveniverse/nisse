@@ -64,15 +64,16 @@ final class NisseModelVersionProcessor implements ModelVersionProcessor {
                 List<String> translatedTo = table.get(sourcePrefixedKey);
                 if (translatedTo != null) {
                     List<String> targets = translatedTo.stream()
+                            .map(String::trim)
                             .filter(k -> !"+fallback".equals(k))
                             .collect(Collectors.toList());
                     if (!targets.isEmpty()) {
                         String targetExprs =
                                 targets.stream().map(k -> "${" + k + "}").collect(Collectors.joining(", "));
                         logger.warn(
-                                "POM references ${{{}}}, but this property was translated to {} via "
+                                "POM references {}, but this property was translated to {} via "
                                         + "nisse-translation.properties. Use {} instead, or remove the translation.",
-                                property,
+                                "${" + property + "}",
                                 targetExprs,
                                 targetExprs);
                     }
