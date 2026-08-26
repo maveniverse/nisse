@@ -7,6 +7,8 @@
  */
 package eu.maveniverse.maven.nisse.extension3.internal;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -243,6 +245,18 @@ final class NisseInterpolator {
         // Remove the variable from cycle map
         cycleMap.remove(variable);
         return substValue;
+    }
+
+    /**
+     * Performs substitution on all entries in the given map, mirroring
+     * {@code DefaultInterpolator.interpolate(Map, UnaryOperator)}.
+     */
+    public static void substituteVars(Map<String, String> map, UnaryOperator<String> callback) {
+        Map<String, String> snapshot = new HashMap<>(map);
+        for (String name : new ArrayList<>(map.keySet())) {
+            String value = map.get(name);
+            map.put(name, substVars(value, name, null, snapshot, callback, false));
+        }
     }
 
     /**

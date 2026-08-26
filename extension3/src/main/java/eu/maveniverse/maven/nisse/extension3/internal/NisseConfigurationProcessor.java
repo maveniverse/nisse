@@ -15,13 +15,12 @@ import eu.maveniverse.maven.nisse.core.PropertyKeyNamingStrategies;
 import eu.maveniverse.maven.nisse.core.Version;
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.function.UnaryOperator;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
@@ -99,10 +98,11 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
      * user properties.  This bridges the gap between Maven 3 (which ignores the file)
      * and Maven 4 (which auto-loads <em>and interpolates</em> it).
      * <p>
-     * Values are interpolated using {@link NisseInterpolator} (adapted from Maven 4's
-     * {@code DefaultInterpolator}) which supports default values ({@code ${var:-default}}),
-     * alternative values ({@code ${var:+alt}}), nested interpolation, escape handling,
-     * and cycle detection.
+     * Uses {@link MavenPropertiesLoader} (adapted from Maven 4's property loading
+     * infrastructure) which supports {@code ${includes}} directives,
+     * {@code maven.override.*} prefixes, value trimming, UTF-8 loading, and full
+     * variable substitution via {@link NisseInterpolator} (default values, alternative
+     * values, nested interpolation, escape handling, cycle detection).
      * <p>
      * Only keys with the {@code nisse.} prefix are considered; unexpanded git
      * {@code export-subst} placeholders ({@code $Format:…$}) are silently skipped.
@@ -115,51 +115,46 @@ final class NisseConfigurationProcessor implements ConfigurationProcessor {
             return;
         }
 
-        try (InputStream in = Files.newInputStream(mavenUserPropsPath)) {
-            Properties props = new Properties();
-            props.load(in);
-
-            // Build the interpolation context — same sources Maven 4 uses in
-            // BaseParser.populateUserProperties() via MavenPropertiesLoader:
-            //   1. properties from the file itself   (cross-references)
-            //   2. system properties                 (user.home, etc.)
-            //   3. user properties                   (-D flags, nisse-computed)
-            //   4. session path placeholders
-            Map<String, String> context = new HashMap<>();
-            for (String key : props.stringPropertyNames()) {
-                context.put(key, props.getProperty(key));
-            }
-            for (String key : systemProperties.stringPropertyNames()) {
-                context.put(key, systemProperties.getProperty(key));
-            }
-            for (String key : userProperties.stringPropertyNames()) {
-                context.put(key, userProperties.getProperty(key));
-            }
+        try {
             String rootDir = sessionRoot.toString();
-            context.put("session.rootDirectory", rootDir);
-            context.put("session.topDirectory", rootDir);
-            context.put("maven.project.conf", sessionRoot.resolve(".mvn").toString());
+            // Callback for external variable resolution — same sources Maven 4 uses
+            // in BaseParser.populateUserProperties() via MavenPropertiesLoader
+            UnaryOperator<String> callback = key -> {
+                if ("session.rootDirectory".equals(key) || "session.topDirectory".equals(key)) {
+                    return rootDir;
+                }
+                if ("maven.project.conf".equals(key)) {
+                    return sessionRoot.resolve(".mvn").toString();
+                }
+                String v = userProperties.getProperty(key);
+                if (v == null) {
+                    v = systemProperties.getProperty(key);
+                }
+                return v;
+            };
 
-            int loaded = 0;
-            for (String key : props.stringPropertyNames()) {
+            Properties loaded = new Properties();
+            MavenPropertiesLoader.loadProperties(loaded, mavenUserPropsPath, callback, false);
+
+            int count = 0;
+            for (String key : loaded.stringPropertyNames()) {
                 if (!key.startsWith(NisseConfiguration.PROPERTY_PREFIX)) {
                     continue;
                 }
-                String value = props.getProperty(key);
+                String value = loaded.getProperty(key);
                 if (value == null || value.trim().isEmpty()) {
                     continue;
                 }
                 if (isUnexpandedPlaceholder(value)) {
                     continue;
                 }
-                value = NisseInterpolator.substVars(value, key, null, context, null, false);
                 if (!userProperties.containsKey(key)) {
                     userProperties.setProperty(key, value);
-                    loaded++;
+                    count++;
                 }
             }
-            if (loaded > 0) {
-                logger.debug("Loaded {} nisse properties from {} (Maven 3 compatibility)", loaded, mavenUserPropsPath);
+            if (count > 0) {
+                logger.debug("Loaded {} nisse properties from {} (Maven 3 compatibility)", count, mavenUserPropsPath);
             }
         } catch (IOException e) {
             logger.warn("Failed to read maven-user.properties from {}: {}", mavenUserPropsPath, e.getMessage());
