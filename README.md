@@ -12,9 +12,15 @@ Nisse is a suite of extensions and plugins for Maven 3 and Maven 4 that provides
 
 ## Usage with Maven
 
-There are 3 extensions: `extension3` meant to be used with Maven 3 exclusively (does not work in Maven 4), then
-`extension4` meant to be used with Maven 4 exclusively (does not work in Maven 3), and finally `extension`, that
-works in both, Maven 3 and Maven 4. Last is the recommended extension to be used. Use it like this:
+There are 3 extension artifacts:
+
+| Artifact | Maven version | Notes |
+|----------|---------------|-------|
+| **`extension`** (recommended) | Maven 3 and Maven 4 | Universal artifact that works in both Maven versions. Use this unless you have a specific reason not to. |
+| `extension3` | Maven 3 only | Does not work in Maven 4. |
+| `extension4` | Maven 4 only | Does not work in Maven 3. |
+
+Add the recommended `extension` artifact to `.mvn/extensions.xml`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -44,6 +50,61 @@ The `-N` is needed only if you are in root of some complex multi-module project.
 Note that this only works when Nisse is declared as a ["core extension"](https://maven.apache.org/guides/mini/guide-using-extensions.html) 
 (Maven 3 and 4) through **.mvn/extensions.xml** or as a "user-wide extension" (Maven 4 only) through **~/.m2/extensions.xml**.
 Otherwise, one may use `dump-properties` Mojo or the `nisse.dump` property of `inject-properties` Mojo. 
+
+### Quick Start: Git-based dynamic versioning
+
+Nisse can derive your project version from Git tags automatically, eliminating hardcoded version
+strings from your POM. This works with both Maven 3 and Maven 4.
+
+**1. `.mvn/extensions.xml`** — register Nisse as a core extension:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<extensions>
+    <extension>
+        <groupId>eu.maveniverse.maven.nisse</groupId>
+        <artifactId>extension</artifactId>
+        <version>0.9.8</version><!-- replace with latest Nisse version -->
+    </extension>
+</extensions>
+```
+
+**2. `.mvn/maven.config`** — enable dynamic versioning:
+
+```text
+-Dnisse.source.jgit.dynamicVersion=true
+```
+
+**3. `pom.xml`** — use the dynamic version property:
+
+```xml
+<version>${nisse.jgit.dynamicVersion}</version>
+```
+
+That's it. Nisse will compute the version from your Git history (tags, commits, branch) and inject
+it at build time. Run `mvn validate -N -Dnisse.dump` to see the resolved value.
+
+#### Using translation to map to `${revision}` (CI Friendly Versions)
+
+If you prefer to use Maven's standard `${revision}` property (for example, to keep compatibility
+with tools that expect CI Friendly Versions), add a translation file:
+
+**`.mvn/nisse-translation.properties`:**
+
+```properties
+jgit.dynamicVersion=revision
+```
+
+This translates the Nisse key so the version is published as `${revision}` instead of
+`${nisse.jgit.dynamicVersion}`. Your POM then uses:
+
+```xml
+<version>${revision}</version>
+```
+
+> **Note:** When using translation, make sure the POM references the *translated* property name
+> (`${revision}`), not the original (`${nisse.jgit.dynamicVersion}`). Nisse will warn you if a
+> translated property is still referenced by its original name.
 
 ## Usage with Gradle
 
