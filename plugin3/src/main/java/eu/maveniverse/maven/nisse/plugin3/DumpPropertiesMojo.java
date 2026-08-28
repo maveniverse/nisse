@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  * Nisse dump-properties Mojo that dumps created properties to output.
  * Is mostly usable as some diagnostic/setup check.
  */
-@Mojo(name = "dump-properties", threadSafe = true)
+@Mojo(name = "dump-properties", threadSafe = true, requiresProject = false)
 public class DumpPropertiesMojo extends AbstractMojo {
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
