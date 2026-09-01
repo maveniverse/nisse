@@ -1125,13 +1125,15 @@ public class JGitPropertySource implements PropertySource {
         if (appendBranchName) {
             String localBranch = properties.get(JGIT_BRANCH_NAME);
             if (localBranch == null) {
-                throw new IllegalStateException("Branch name configured to be qualifier, but is absent");
+                logger.warn("Branch name configured to be qualifier, but is absent");
+            } else {
+                String sanitizedBranchName = sanitizeBranchName(localBranch);
+                if (sanitizedBranchName == null || sanitizedBranchName.trim().isEmpty()) {
+                    logger.warn("Branch name configured to be qualifier, but is empty");
+                } else {
+                    qualifier = appendQualifier(qualifier, sanitizeBranchName(localBranch));
+                }
             }
-            String sanitizedBranchName = sanitizeBranchName(localBranch);
-            if (sanitizedBranchName == null || sanitizedBranchName.trim().isEmpty()) {
-                throw new IllegalStateException("Branch name configured to be qualifier, but is empty");
-            }
-            qualifier = appendQualifier(qualifier, sanitizeBranchName(localBranch));
         }
         boolean appendSnapshot = Boolean.parseBoolean(configuration
                 .getConfiguration()
