@@ -24,4 +24,5 @@ def actualVersion = matcher[0][1]
 def expectedVersion = '1.0.0-2'
 
 assert actualVersion == expectedVersion : "Expected version '${expectedVersion}', but found '${actualVersion}'"
+// assert WARNING is present
 assert logContent.contains('[WARNING] Branch name configured to be qualifier, but is absent')

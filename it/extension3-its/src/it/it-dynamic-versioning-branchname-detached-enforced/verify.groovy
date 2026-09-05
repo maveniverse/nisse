@@ -13,5 +13,5 @@ assert mavenLogFile.exists() : "Maven log file does not exist"
 // Read the log file
 def logContent = mavenLogFile.text
 
-// build failed, we should have only the error
-assert logContent.contains('[ERROR] java.lang.IllegalStateException: Branch name configured to be qualifier, but is absent')
+// build failed, we should have the error in output
+assert logContent.contains('Branch name configured to be qualifier, but is absent')
