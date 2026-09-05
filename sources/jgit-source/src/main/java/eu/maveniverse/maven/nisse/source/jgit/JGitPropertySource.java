@@ -242,6 +242,15 @@ public class JGitPropertySource implements PropertySource {
     private static final String DEFAULT_APPEND_BRANCH_NAME = Boolean.FALSE.toString();
 
     /**
+     * When appending branch name (see {@link #JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCH_NAME}), is presence of branch
+     * name enforced (fail if it cannot be determined, for example in case of "detached head") or is just "best effort"?
+     */
+    private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCH_NAME_ENFORCED =
+            "nisse.source.jgit.appendBranchNameEnforced";
+
+    private static final String DEFAULT_APPEND_BRANCH_NAME_ENFORCED = Boolean.FALSE.toString();
+
+    /**
      * Whether the DIRTY qualifier shall be appended or not.
      */
     private static final String JGIT_CONF_SYSTEM_PROPERTY_APPEND_DIRTY = "nisse.source.jgit.appendDirty";
@@ -1123,15 +1132,28 @@ public class JGitPropertySource implements PropertySource {
                 .getConfiguration()
                 .getOrDefault(JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCH_NAME, DEFAULT_APPEND_BRANCH_NAME));
         if (appendBranchName) {
+            boolean appendBranchNameEnforced = Boolean.parseBoolean(configuration
+                    .getConfiguration()
+                    .getOrDefault(
+                            JGIT_CONF_SYSTEM_PROPERTY_APPEND_BRANCH_NAME_ENFORCED,
+                            DEFAULT_APPEND_BRANCH_NAME_ENFORCED));
             String localBranch = properties.get(JGIT_BRANCH_NAME);
             if (localBranch == null) {
-                logger.warn("Branch name configured to be qualifier, but is absent");
+                if (appendBranchNameEnforced) {
+                    throw new IllegalStateException("Branch name configured to be qualifier, but is absent");
+                } else {
+                    logger.warn("Branch name configured to be qualifier, but is absent");
+                }
             } else {
                 String sanitizedBranchName = sanitizeBranchName(localBranch);
                 if (sanitizedBranchName == null || sanitizedBranchName.trim().isEmpty()) {
-                    logger.warn("Branch name configured to be qualifier, but is empty");
+                    if (appendBranchNameEnforced) {
+                        throw new IllegalStateException("Branch name configured to be qualifier, but is empty");
+                    } else {
+                        logger.warn("Branch name configured to be qualifier, but is empty");
+                    }
                 } else {
-                    qualifier = appendQualifier(qualifier, sanitizeBranchName(localBranch));
+                    qualifier = appendQualifier(qualifier, sanitizedBranchName);
                 }
             }
         }
