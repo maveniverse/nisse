@@ -179,6 +179,12 @@ If current commit doesn't have a tag, should the count of commits since last tag
 
 Controls whether to append the name of the actual branch to dynamic versions when the current commit is not tagged.
 
+#### `nisse.source.jgit.appendBranchNameEnforced`
+
+**Default:** `false`
+
+Controls, if `appendBranchName` is used (true), is detection of branch name "best effort" (append if determined) or "enforced" (fail when cannot be determined).
+
 #### `nisse.source.jgit.appendDirty`
 
 **Default:** `false`
