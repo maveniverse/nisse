@@ -213,6 +213,16 @@ Override dynamic version resolution with a specific version string.
 
 **Example:** `nisse.source.jgit.useVersion=2.0.0-BETA`
 
+### `nisse.source.jgit.tagPrefix`
+
+**Default:** `""` (empty string)
+
+Tag prefix for matching version tags. When empty (default), tags starting with an optional
+`v` followed by a semantic version are matched (e.g. `v1.0.0`, `2.3.1`).
+Set to a non-empty value like `jline-` or `camel-` to match prefixed tags
+(e.g. `jline-3.28.0`, `camel-4.8.0`). When set, prefix is treated
+as a literal string (regex-quoted).
+
 #### `nisse.source.jgit.versionHintPattern`
 
 **Default:** `${version}-SNAPSHOT`
