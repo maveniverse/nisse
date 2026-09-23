@@ -192,6 +192,7 @@ public class JGitPropertySource implements PropertySource {
      * @deprecated Use {@link #JGIT_CONF_SYSTEM_PROPERTY_VERSION_INCREMENT} with value {@code conventionalCommits}
      *     instead. This property is still honoured as a fallback when {@code versionIncrement} is not set.
      */
+    @Deprecated
     private static final String JGIT_CONF_SYSTEM_PROPERTY_CONVENTIONAL_COMMITS =
             "nisse.source.jgit.conventionalCommits";
 
