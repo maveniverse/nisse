@@ -213,7 +213,7 @@ Override dynamic version resolution with a specific version string.
 
 **Example:** `nisse.source.jgit.useVersion=2.0.0-BETA`
 
-### `nisse.source.jgit.tagPrefix`
+#### `nisse.source.jgit.tagPrefix`
 
 **Default:** `""` (empty string)
 
