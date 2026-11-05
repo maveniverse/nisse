@@ -537,6 +537,106 @@ public class JGitPropertySourceTest {
     }
 
     @Test
+    void testBranchNameWorktreeDetachedOnMainBranchCommit(@TempDir Path tempDir) throws Exception {
+        Path mainRepo = tempDir.resolve("main-repo");
+        Files.createDirectories(mainRepo);
+
+        exec(mainRepo, "git", "init", "-b", "master");
+        exec(mainRepo, "git", "config", "user.email", "test@test.com");
+        exec(mainRepo, "git", "config", "user.name", "Test");
+        Files.write(mainRepo.resolve("file.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(mainRepo, "git", "add", "file.txt");
+        exec(mainRepo, "git", "commit", "-m", "initial commit");
+
+        // detached worktree on same commit as main checkout "master": main checkout HEAD must not leak in
+        Path worktree = tempDir.resolve("worktree");
+        exec(mainRepo, "git", "worktree", "add", "--detach", worktree.toString());
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(worktree)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertFalse(properties.containsKey("branchName"));
+
+        // main checkout unaffected
+        properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(mainRepo)
+                        .build());
+
+        assertEquals("master", properties.get("branchName"));
+    }
+
+    @Test
+    void testBranchNameWorktreeIgnoresRemoteHead(@TempDir Path tempDir) throws Exception {
+        Path origin = tempDir.resolve("origin");
+        Files.createDirectories(origin);
+        exec(origin, "git", "init", "-b", "main");
+        exec(origin, "git", "config", "user.email", "test@test.com");
+        exec(origin, "git", "config", "user.name", "Test");
+        Files.write(origin.resolve("file.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(origin, "git", "add", "file.txt");
+        exec(origin, "git", "commit", "-m", "initial commit");
+
+        exec(tempDir, "git", "clone", origin.toString(), "clone");
+        Path clone = tempDir.resolve("clone");
+
+        // worktree branch, local main, origin/main and symbolic origin/HEAD all on the same commit
+        Path worktree = tempDir.resolve("worktree");
+        exec(clone, "git", "worktree", "add", worktree.toString(), "-b", "feature");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(worktree)
+                        .build());
+
+        assertEquals("feature", properties.get("branchName"));
+
+        exec(worktree, "git", "checkout", "--detach");
+        properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(worktree)
+                        .build());
+
+        assertFalse(properties.isEmpty(), "Properties should not be empty");
+        assertFalse(properties.containsKey("branchName"));
+    }
+
+    @Test
+    void testBranchNameIgnoresRemoteHead(@TempDir Path tempDir) throws Exception {
+        Path origin = tempDir.resolve("origin");
+        Files.createDirectories(origin);
+        exec(origin, "git", "init", "-b", "main");
+        exec(origin, "git", "config", "user.email", "test@test.com");
+        exec(origin, "git", "config", "user.name", "Test");
+        Files.write(origin.resolve("file.txt"), "hello".getBytes(StandardCharsets.UTF_8));
+        exec(origin, "git", "add", "file.txt");
+        exec(origin, "git", "commit", "-m", "initial commit");
+
+        // clone has symbolic refs/remotes/origin/HEAD -> origin/main, all on the same commit as local main
+        exec(tempDir, "git", "clone", origin.toString(), "clone");
+        Path clone = tempDir.resolve("clone");
+
+        Map<String, String> properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(clone)
+                        .build());
+
+        assertEquals("main", properties.get("branchName"));
+
+        // detached: origin/HEAD is then the only symbolic ref on HEAD commit; must not yield "origin/main"
+        exec(clone, "git", "checkout", "--detach");
+        properties = new JGitPropertySource()
+                .getProperties(SimpleNisseConfiguration.builder()
+                        .withCurrentWorkingDirectory(clone)
+                        .build());
+
+        assertFalse(properties.containsKey("branchName"));
+    }
+
+    @Test
     void testBranchNameTwoBranchesSameCommit(@TempDir Path tempDir) throws Exception {
         Path mainRepo = tempDir.resolve("main-repo");
         Files.createDirectories(mainRepo);
