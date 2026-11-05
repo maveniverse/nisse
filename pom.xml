@@ -78,7 +78,7 @@
     <maven4Version>4.0.0-rc-6</maven4Version>
 
     <version.slf4j>1.7.36</version.slf4j>
-    <version.sisu>1.1.0</version.sisu>
+    <version.sisu>1.1.1</version.sisu>
   </properties>
 
   <dependencyManagement>
