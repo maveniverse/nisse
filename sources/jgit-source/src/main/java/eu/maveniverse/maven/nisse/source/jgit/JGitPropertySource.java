@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -462,7 +461,7 @@ public class JGitPropertySource implements PropertySource {
                         }
                     }
 
-                    Optional<Ref> localBranch = localBranch(repository, worktreeGitDir, head);
+                    Optional<Ref> localBranch = localBranch(repository, worktreeGitDir);
                     localBranch
                             .map(r -> Repository.shortenRefName(r.getName()))
                             .ifPresent(branchName -> result.put(JGIT_BRANCH_NAME, branchName));
@@ -550,7 +549,11 @@ public class JGitPropertySource implements PropertySource {
         return git.status().call().isClean();
     }
 
-    private Optional<Ref> localBranch(Repository repository, Path worktreeGitDir, ObjectId head) throws IOException {
+    /**
+     * Returns the branch HEAD points to, or empty if HEAD is detached. HEAD is read directly: scanning refs by
+     * commit is ambiguous, as {@code refs/remotes/origin/HEAD} is symbolic too, and would yield {@code origin/main}.
+     */
+    private Optional<Ref> localBranch(Repository repository, Path worktreeGitDir) throws IOException {
         if (worktreeGitDir != null) {
             Ref wtHead = resolveHeadRef(repository, worktreeGitDir);
             if (wtHead != null) {
@@ -561,23 +564,10 @@ public class JGitPropertySource implements PropertySource {
                     return Optional.of(wtHead);
                 }
             }
+            return Optional.empty();
         }
-        if (head != null) {
-            Set<Ref> refs = repository.getRefDatabase().getTipsWithSha1(head);
-            for (Ref r : refs) {
-                if (r.isSymbolic()) {
-                    return Optional.of(r.getTarget());
-                }
-            }
-            if (refs.size() == 1) {
-                Ref ref = refs.iterator().next();
-                // if "detached" return empty
-                if (!"HEAD".equals(ref.getName())) {
-                    return Optional.of(ref);
-                }
-            }
-        }
-        return Optional.empty();
+        Ref head = repository.exactRef(Constants.HEAD);
+        return head != null && head.isSymbolic() ? Optional.of(head.getTarget()) : Optional.empty();
     }
 
     /**
