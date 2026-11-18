@@ -72,8 +72,9 @@ public interface NisseConfiguration {
     Path getSessionRootDirectory();
 
     /**
-     * Returns {@code true} if property source is active (by default they are active). To disable a source use
-     * {@code "nisse.source.$source.active=false"} property (defaults to {@code true}).
+     * Returns {@code true} if property source is active. To enable or disable a source use
+     * {@code "nisse.source.$source.active=true|false"} property (defaults to {@link PropertySource#isActiveByDefault()},
+     * that is {@code true} for most sources).
      */
     boolean isPropertySourceActive(PropertySource source);
 

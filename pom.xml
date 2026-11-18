@@ -106,6 +106,16 @@
       </dependency>
       <dependency>
         <groupId>eu.maveniverse.maven.nisse.sources</groupId>
+        <artifactId>script-source</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>eu.maveniverse.maven.nisse.sources</groupId>
+        <artifactId>docker-source</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>eu.maveniverse.maven.nisse.sources</groupId>
         <artifactId>file-source</artifactId>
         <version>${project.version}</version>
       </dependency>
