@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@code unix://} host.
  */
 final class DockerPing {
-    static final long TIMEOUT_MS = 1000;
+    static final long DEFAULT_TIMEOUT_MS = 1000;
 
     private static final String TCP = "tcp://";
     private static final String NPIPE = "npipe://";
@@ -52,7 +52,7 @@ final class DockerPing {
      * Returns {@code running} (and when engine answered, {@code apiVersion} and {@code type}) properties, or empty
      * map if the host cannot be pinged (ie. {@code ssh://}, TLS, or {@code unix://} on Java older than 16).
      */
-    static Map<String, String> ping(String host, Path socket, boolean tls) {
+    static Map<String, String> ping(String host, Path socket, boolean tls, long timeoutMs) {
         if (!(host.startsWith(TCP) && !tls || host.startsWith(NPIPE) || host.startsWith(UNIX) && UNIX_SUPPORTED)) {
             return Collections.emptyMap();
         }
@@ -72,7 +72,7 @@ final class DockerPing {
         thread.setDaemon(true);
         thread.start();
         try {
-            thread.join(TIMEOUT_MS);
+            thread.join(timeoutMs);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

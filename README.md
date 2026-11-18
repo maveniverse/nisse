@@ -132,7 +132,7 @@ version, deactivating sources, etc.) — see the [Gradle README](gradle/README.m
 ## Implemented Sources
 
 There are 6 sources provided out of the box:
-* `docker-source` (disabled by default, enable with `nisse.source.docker.active=true`): detects presence of Docker compatible engine (Docker or Podman) via `DOCKER_HOST` or well known socket/named pipe locations, publishes `present`, `host`, `socket`, `type`, `cli`, and if engine answers `/_ping` also `running` and `apiVersion`
+* `docker-source` (disabled by default, enable with `nisse.source.docker.active=true`): detects presence of Docker compatible engine (Docker or Podman) via `DOCKER_HOST` or well known socket/named pipe locations, publishes `present`, `host`, `socket`, `type`, `cli`, and if engine answers `/_ping` also `running` and `apiVersion` (ping timeout is 1000ms, override with `nisse.source.docker.pingTimeout` in milliseconds, ie. on loaded systems)
 * `file-source`: it reads up a Java Properties File from disk and publishes that
 * `jgit-source`: it uses Eclipse JGit to get some git related data
 * `mvn-source`: it provides major/minor/patch versions of currently used Maven (note: Maven 4 already provides this from core)

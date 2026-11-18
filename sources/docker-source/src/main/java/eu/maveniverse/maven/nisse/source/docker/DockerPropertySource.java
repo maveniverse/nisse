@@ -41,7 +41,7 @@ import javax.inject.Singleton;
  *     <li>{@code type} - {@code "docker"} or {@code "podman"} (only if present and is socket or pipe, or is
  *     running)</li>
  *     <li>{@code running} - {@code "true"} or {@code "false"}, whether engine answered {@code GET /_ping}
- *     within 1 second (only if present, and is {@code tcp://} without TLS, {@code npipe://}, or {@code unix://} and
+ *     within {@code nisse.source.docker.pingTimeout} milliseconds (default 1000) (only if present, and is {@code tcp://} without TLS, {@code npipe://}, or {@code unix://} and
  *     Java 16+)</li>
  *     <li>{@code apiVersion} - Docker Engine API version reported by engine (only if running)</li>
  *     <li>{@code cli} - path of {@code docker} or {@code podman} CLI executable, the one matching {@code type}
@@ -52,6 +52,11 @@ import javax.inject.Singleton;
 @Named(DockerPropertySource.NAME)
 public class DockerPropertySource implements PropertySource {
     public static final String NAME = "docker";
+
+    /**
+     * Engine ping timeout in milliseconds (default {@code 1000}), may be raised ie. on loaded systems.
+     */
+    public static final String PING_TIMEOUT = NisseConfiguration.SOURCE_PREFIX + NAME + ".pingTimeout";
 
     private static final String PRESENT = "present";
     private static final String HOST = "host";
@@ -91,10 +96,27 @@ public class DockerPropertySource implements PropertySource {
                     String v = config.get("env." + k);
                     return v != null ? v : System.getenv(k);
                 },
-                config.get("user.home"));
+                config.get("user.home"),
+                pingTimeout(config.get(PING_TIMEOUT)));
     }
 
-    static Map<String, String> detect(Function<String, String> env, String userHome) {
+    static long pingTimeout(String value) {
+        if (value == null) {
+            return DockerPing.DEFAULT_TIMEOUT_MS;
+        }
+        try {
+            long timeout = Long.parseLong(value.trim());
+            if (timeout > 0) {
+                return timeout;
+            }
+        } catch (NumberFormatException e) {
+            // fall through
+        }
+        throw new IllegalArgumentException(
+                PING_TIMEOUT + " must be a positive number of milliseconds, but was: " + value);
+    }
+
+    static Map<String, String> detect(Function<String, String> env, String userHome, long pingTimeoutMs) {
         HashMap<String, String> result = new HashMap<>();
         result.put(PRESENT, Boolean.FALSE.toString());
 
@@ -136,7 +158,7 @@ public class DockerPropertySource implements PropertySource {
                 String tlsVerify = env.apply("DOCKER_TLS_VERIFY");
                 // overrides type with the one reported by engine, if it answered
                 result.putAll(DockerPing.ping(
-                        host, socket, tlsVerify != null && !tlsVerify.trim().isEmpty()));
+                        host, socket, tlsVerify != null && !tlsVerify.trim().isEmpty(), pingTimeoutMs));
                 break;
             }
         }

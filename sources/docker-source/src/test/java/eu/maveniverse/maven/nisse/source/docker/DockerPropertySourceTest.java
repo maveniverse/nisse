@@ -3,6 +3,7 @@ package eu.maveniverse.maven.nisse.source.docker;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import eu.maveniverse.maven.nisse.core.simple.SimpleNisseConfiguration;
@@ -33,7 +34,8 @@ public class DockerPropertySourceTest {
     void dockerHostUnixPresent(@TempDir Path tmp) throws IOException {
         Path socket = Files.createDirectories(tmp.resolve("podman")).resolve("podman.sock");
         Files.createFile(socket);
-        Map<String, String> result = DockerPropertySource.detect(env("unix://" + socket), null);
+        Map<String, String> result =
+                DockerPropertySource.detect(env("unix://" + socket), null, DockerPing.DEFAULT_TIMEOUT_MS);
         assertEquals("true", result.get("present"));
         assertEquals(socket.toString(), result.get("socket"));
         assertEquals("unix://" + socket, result.get("host"));
@@ -42,8 +44,8 @@ public class DockerPropertySourceTest {
 
     @Test
     void dockerHostUnixMissing(@TempDir Path tmp) {
-        Map<String, String> result =
-                DockerPropertySource.detect(env("unix://" + tmp.resolve("docker.sock")), tmp.toString());
+        Map<String, String> result = DockerPropertySource.detect(
+                env("unix://" + tmp.resolve("docker.sock")), tmp.toString(), DockerPing.DEFAULT_TIMEOUT_MS);
         assertEquals("false", result.get("present"));
         assertFalse(result.containsKey("socket"));
     }
@@ -69,7 +71,7 @@ public class DockerPropertySourceTest {
             });
             engine.start();
             String host = "tcp://127.0.0.1:" + server.getLocalPort();
-            Map<String, String> result = DockerPropertySource.detect(env(host), null);
+            Map<String, String> result = DockerPropertySource.detect(env(host), null, DockerPing.DEFAULT_TIMEOUT_MS);
             assertEquals("true", result.get("present"));
             assertEquals(host, result.get("host"));
             assertFalse(result.containsKey("socket"));
@@ -85,7 +87,8 @@ public class DockerPropertySourceTest {
         try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             port = server.getLocalPort();
         }
-        Map<String, String> result = DockerPropertySource.detect(env("tcp://127.0.0.1:" + port), null);
+        Map<String, String> result =
+                DockerPropertySource.detect(env("tcp://127.0.0.1:" + port), null, DockerPing.DEFAULT_TIMEOUT_MS);
         assertEquals("true", result.get("present"));
         assertEquals("false", result.get("running"));
         assertFalse(result.containsKey("apiVersion"));
@@ -97,10 +100,21 @@ public class DockerPropertySourceTest {
         try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             long start = System.nanoTime();
             Map<String, String> result =
-                    DockerPropertySource.detect(env("tcp://127.0.0.1:" + server.getLocalPort()), null);
+                    DockerPropertySource.detect(env("tcp://127.0.0.1:" + server.getLocalPort()), null, 1500);
+            long elapsedMs = (System.nanoTime() - start) / 1_000_000;
             assertEquals("false", result.get("running"));
-            assertTrue(System.nanoTime() - start < 3_000_000_000L);
+            // lower bound only (robust on loaded CI): proves configured timeout is used instead of default 1000ms
+            assertTrue(elapsedMs >= 1500, "elapsed " + elapsedMs + "ms");
         }
+    }
+
+    @Test
+    void pingTimeoutConfig() {
+        assertEquals(DockerPing.DEFAULT_TIMEOUT_MS, DockerPropertySource.pingTimeout(null));
+        assertEquals(5000, DockerPropertySource.pingTimeout(" 5000 "));
+        assertThrows(IllegalArgumentException.class, () -> DockerPropertySource.pingTimeout("0"));
+        assertThrows(IllegalArgumentException.class, () -> DockerPropertySource.pingTimeout("-1"));
+        assertThrows(IllegalArgumentException.class, () -> DockerPropertySource.pingTimeout("1s"));
     }
 
     @Test
@@ -108,7 +122,7 @@ public class DockerPropertySourceTest {
         Map<String, String> env = new HashMap<>();
         env.put("DOCKER_HOST", "tcp://127.0.0.1:2376");
         env.put("DOCKER_TLS_VERIFY", "1");
-        Map<String, String> result = DockerPropertySource.detect(env::get, null);
+        Map<String, String> result = DockerPropertySource.detect(env::get, null, DockerPing.DEFAULT_TIMEOUT_MS);
         assertEquals("true", result.get("present"));
         assertFalse(result.containsKey("running"));
     }
@@ -131,8 +145,8 @@ public class DockerPropertySourceTest {
             assertTrue(Files.createFile(bin.resolve(name)).toFile().setExecutable(true));
         }
         Function<String, String> env = env("unix://" + socket);
-        Map<String, String> result =
-                DockerPropertySource.detect(k -> "PATH".equals(k) ? bin.toString() : env.apply(k), null);
+        Map<String, String> result = DockerPropertySource.detect(
+                k -> "PATH".equals(k) ? bin.toString() : env.apply(k), null, DockerPing.DEFAULT_TIMEOUT_MS);
         assertEquals(bin.resolve("podman").toString(), result.get("cli"));
     }
 
