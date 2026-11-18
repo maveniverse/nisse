@@ -8,4 +8,4 @@
 File buildLog = new File( basedir, 'build.log' )
 assert buildLog.exists()
 assert buildLog.text.contains ('Nisse script compilation failed')
-assert buildLog.text.contains ('line 3')
+assert buildLog.text.contains ('line 3:')

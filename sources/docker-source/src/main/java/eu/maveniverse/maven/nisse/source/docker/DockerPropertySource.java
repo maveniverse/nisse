@@ -28,10 +28,15 @@ import javax.inject.Singleton;
 /**
  * docker source: detects presence of a Docker compatible container engine (Docker or Podman).
  * <p>
- * If {@code DOCKER_HOST} environment variable is set, it is used as is (and is not probed if it is not a
- * {@code unix://} socket or {@code npipe://} named pipe). Otherwise, well known socket locations of Docker,
- * Docker Desktop, rootless Docker, Podman (rootful and rootless), Colima and Rancher Desktop are probed, and on
- * Windows the Docker Desktop and Podman machine named pipes.
+ * If {@code DOCKER_HOST} environment variable is set, only that host is used: {@code unix://} sockets and
+ * {@code npipe://} named pipes must exist, other hosts ({@code tcp://}, {@code ssh://}) are trusted as present.
+ * Otherwise, well known socket locations of Docker, Docker Desktop, rootless Docker, Podman (rootful and rootless),
+ * Colima and Rancher Desktop are probed, and on Windows the Docker Desktop and Podman machine named pipes; the first
+ * one whose engine answers ping is used, or if none answers, the first existing one.
+ * <p>
+ * Present engine is pinged ({@code GET /_ping}) over {@code unix://} (Java 16+), {@code npipe://} and {@code tcp://}
+ * (only if TLS is not enabled by {@code DOCKER_TLS} or {@code DOCKER_TLS_VERIFY}), so enabling this source may open
+ * a connection to the engine.
  * <p>
  * Published properties:
  * <ul>
@@ -40,9 +45,8 @@ import javax.inject.Singleton;
  *     <li>{@code socket} - the Unix socket or named pipe path (only if present and is socket or pipe)</li>
  *     <li>{@code type} - {@code "docker"} or {@code "podman"} (only if present and is socket or pipe, or is
  *     running)</li>
- *     <li>{@code running} - {@code "true"} or {@code "false"}, whether engine answered {@code GET /_ping}
- *     within {@code nisse.source.docker.pingTimeout} milliseconds (default 1000) (only if present, and is {@code tcp://} without TLS, {@code npipe://}, or {@code unix://} and
- *     Java 16+)</li>
+ *     <li>{@code running} - {@code "true"} or {@code "false"}, whether engine answered {@code GET /_ping} within
+ *     {@code nisse.source.docker.pingTimeout} milliseconds, default 1000 (only if present and can be pinged)</li>
  *     <li>{@code apiVersion} - Docker Engine API version reported by engine (only if running)</li>
  *     <li>{@code cli} - path of {@code docker} or {@code podman} CLI executable, the one matching {@code type}
  *     preferred (only if found on {@code PATH} or in well known install locations)</li>
@@ -63,6 +67,7 @@ public class DockerPropertySource implements PropertySource {
     private static final String SOCKET = "socket";
     private static final String TYPE = "type";
     private static final String CLI = "cli";
+    private static final String RUNNING = "running";
 
     private static final String DOCKER = "docker";
     private static final String PODMAN = "podman";
@@ -144,24 +149,8 @@ public class DockerPropertySource implements PropertySource {
             }
         }
 
-        for (String host : hosts) {
-            Path socket = socketPath(host);
-            // tcp://, ssh://: no file to check, trust the user (and ping below)
-            // socket: follows symlinks, dangling (ie. engine not installed or stopped) does not count
-            if (socket == null || Files.exists(socket)) {
-                result.put(PRESENT, Boolean.TRUE.toString());
-                result.put(HOST, host);
-                if (socket != null) {
-                    result.put(SOCKET, socket.toString());
-                    result.put(TYPE, isPodman(socket) ? PODMAN : DOCKER);
-                }
-                String tlsVerify = env.apply("DOCKER_TLS_VERIFY");
-                // overrides type with the one reported by engine, if it answered
-                result.putAll(DockerPing.ping(
-                        host, socket, tlsVerify != null && !tlsVerify.trim().isEmpty(), pingTimeoutMs));
-                break;
-            }
-        }
+        boolean tls = isSet(env.apply("DOCKER_TLS")) || isSet(env.apply("DOCKER_TLS_VERIFY"));
+        result.putAll(select(hosts, tls, pingTimeoutMs));
 
         Path cli = findCli(env, userHome, PODMAN.equals(result.get(TYPE)));
         if (cli != null) {
@@ -171,7 +160,46 @@ public class DockerPropertySource implements PropertySource {
     }
 
     /**
-     * Returns the filesystem path of {@code unix://} or {@code npipe://} host, or {@code null} for other schemes.
+     * Returns properties of the first present host whose engine answers ping (or cannot be pinged), or if none
+     * answers, of the first present host. Returns empty map if no host is present.
+     */
+    static Map<String, String> select(List<String> hosts, boolean tls, long pingTimeoutMs) {
+        Map<String, String> fallback = Collections.emptyMap();
+        for (String host : hosts) {
+            Path socket = socketPath(host);
+            boolean socketBased = host.startsWith(UNIX) || host.startsWith(NPIPE);
+            // tcp://, ssh://: no file to check, trust the user (and ping below)
+            // socket: follows symlinks, dangling (ie. engine not installed or stopped) does not count
+            // npipe: exists on Windows only, elsewhere a same named file must not be opened (and written)
+            if (socketBased && (socket == null || host.startsWith(NPIPE) && !WINDOWS || !Files.exists(socket))) {
+                continue;
+            }
+            HashMap<String, String> candidate = new HashMap<>();
+            candidate.put(PRESENT, Boolean.TRUE.toString());
+            candidate.put(HOST, host);
+            if (socket != null) {
+                candidate.put(SOCKET, socket.toString());
+                candidate.put(TYPE, isPodman(socket) ? PODMAN : DOCKER);
+            }
+            // overrides type with the one reported by engine, if it answered
+            candidate.putAll(DockerPing.ping(host, socket, tls, pingTimeoutMs));
+            if (!Boolean.FALSE.toString().equals(candidate.get(RUNNING))) {
+                return candidate;
+            }
+            if (fallback.isEmpty()) {
+                fallback = candidate;
+            }
+        }
+        return fallback;
+    }
+
+    private static boolean isSet(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    /**
+     * Returns the filesystem path of {@code unix://} or {@code npipe://} host, or {@code null} for other schemes and
+     * for named pipe paths not in Windows pipe namespace ({@code \\.\pipe\}).
      */
     static Path socketPath(String host) {
         try {
@@ -179,7 +207,10 @@ public class DockerPropertySource implements PropertySource {
                 return Paths.get(host.substring(UNIX.length()));
             } else if (host.startsWith(NPIPE)) {
                 // npipe:////./pipe/docker_engine -> \\.\pipe\docker_engine
-                return Paths.get(host.substring(NPIPE.length()).replace('/', '\\'));
+                String pipe = host.substring(NPIPE.length()).replace('/', '\\');
+                if (pipe.startsWith("\\\\.\\pipe\\") && pipe.length() > 9) {
+                    return Paths.get(pipe);
+                }
             }
         } catch (InvalidPathException e) {
             // fall through
@@ -187,13 +218,17 @@ public class DockerPropertySource implements PropertySource {
         return null;
     }
 
-    // /var/run/docker.sock may be a symlink to Podman socket (podman-docker package)
-    private static boolean isPodman(Path socket) {
+    // socket file name only (podman.sock, podman-machine-*): /var/run/docker.sock may be a symlink to Podman socket
+    // (podman-docker package), while directory names (ie. user home) are irrelevant
+    static boolean isPodman(Path socket) {
+        Path real;
         try {
-            return socket.toRealPath().toString().contains(PODMAN);
+            real = socket.toRealPath();
         } catch (IOException e) {
-            return socket.toString().contains(PODMAN);
+            real = socket;
         }
+        Path fileName = real.getFileName();
+        return fileName != null && fileName.toString().contains(PODMAN);
     }
 
     private static Path findCli(Function<String, String> env, String userHome, boolean podmanFirst) {

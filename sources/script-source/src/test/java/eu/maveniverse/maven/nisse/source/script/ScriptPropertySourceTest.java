@@ -116,6 +116,37 @@ public class ScriptPropertySourceTest {
     }
 
     @Test
+    void entryClassLikeJdk25Launcher() throws IOException {
+        // first class has no main: class named after the file wins over another class with main
+        script(
+                "Script.java",
+                "class Helper {}\n"
+                        + "class Driver { public static void main(String[] a) { System.out.println(\"picked=Driver\"); } }\n"
+                        + "class Script { public static void main(String[] a) { System.out.println(\"picked=Script\"); } }\n");
+        assertEquals(Collections.singletonMap("picked", "Script"), properties("Script.java"));
+        // first class has main: it wins over class named after the file
+        script(
+                "First.java",
+                "class Alpha { public static void main(String[] a) { System.out.println(\"picked=Alpha\"); } }\n"
+                        + "class First { public static void main(String[] a) { System.out.println(\"picked=First\"); } }\n");
+        assertEquals(Collections.singletonMap("picked", "Alpha"), properties("First.java"));
+    }
+
+    @Test
+    void streamsRestoredWhenScriptReplacesSystemOut() throws IOException {
+        script(
+                "Replace.java",
+                "public class Replace { public static void main(String[] a) {"
+                        + " System.out.println(\"before=yes\");"
+                        + " System.setOut(new java.io.PrintStream(new java.io.ByteArrayOutputStream())); } }\n");
+        InputStream in = System.in;
+        PrintStream out = System.out;
+        assertEquals(Collections.singletonMap("before", "yes"), properties("Replace.java"));
+        assertSame(in, System.in);
+        assertSame(out, System.out);
+    }
+
+    @Test
     void noMain() throws IOException {
         script("NoMain.java", "public class NoMain {}\n");
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> properties("NoMain.java"));

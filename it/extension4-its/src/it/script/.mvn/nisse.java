@@ -5,7 +5,8 @@ public class Nisse {
     public static void main(String[] args) throws Exception {
         Properties cfg = new Properties();
         cfg.load(System.in);
-        System.out.println("greeting=hello-maven-" + cfg.getProperty("maven.version"));
+        // user property from .mvn/maven.config and Maven provided property, both read from stdin
+        System.out.println("greeting=" + cfg.getProperty("it.greeting") + "-maven-" + cfg.getProperty("maven.version"));
         System.out.println("root=" + args[1]);
     }
 }

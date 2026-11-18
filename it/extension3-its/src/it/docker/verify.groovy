@@ -18,6 +18,8 @@ if (present) {
 }
 
 // CI matrix OSes differ in having Docker; only assert what this script can see as well
-if (System.getenv('DOCKER_HOST') == null && new File('/var/run/docker.sock').exists()) {
+// blank DOCKER_HOST is treated as unset by the source
+String dockerHost = System.getenv('DOCKER_HOST')
+if ((dockerHost == null || dockerHost.trim().isEmpty()) && new File('/var/run/docker.sock').exists()) {
     assert present
 }

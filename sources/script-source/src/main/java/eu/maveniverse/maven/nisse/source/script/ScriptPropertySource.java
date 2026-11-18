@@ -103,6 +103,7 @@ public class ScriptPropertySource implements PropertySource {
             // ISO-8859-1 with escapes, so Properties.load(System.in) in script reads it right
             input.store(in, null);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
+            PrintStream capture = new PrintStream(out, true, StandardCharsets.UTF_8.name());
 
             InputStream oldIn = System.in;
             PrintStream oldOut = System.out;
@@ -110,7 +111,7 @@ public class ScriptPropertySource implements PropertySource {
             ClassLoader oldTccl = thread.getContextClassLoader();
             try {
                 System.setIn(new ByteArrayInputStream(in.toByteArray()));
-                System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8.name()));
+                System.setOut(capture);
                 thread.setContextClassLoader(scriptClass.getClassLoader());
                 Object target = Modifier.isStatic(main.getModifiers()) ? null : instantiate(scriptClass);
                 if (main.getParameterCount() == 1) {
@@ -119,7 +120,8 @@ public class ScriptPropertySource implements PropertySource {
                     main.invoke(target);
                 }
             } finally {
-                System.out.flush();
+                // our own stream (never throws): script may have replaced System.out
+                capture.flush();
                 System.setIn(oldIn);
                 System.setOut(oldOut);
                 thread.setContextClassLoader(oldTccl);
@@ -159,7 +161,8 @@ public class ScriptPropertySource implements PropertySource {
     }
 
     /**
-     * Compiles the script in memory, against JDK only, and returns its first top-level class having a main method.
+     * Compiles the script in memory, against JDK only, and returns its entry class: the first top-level class if it
+     * has main method, otherwise the class named after the file (as JDK 25 source launcher does).
      */
     private static Class<?> compile(Path script) {
         JavaCompiler javac = ToolProvider.getSystemJavaCompiler();
@@ -227,9 +230,23 @@ public class ScriptPropertySource implements PropertySource {
                 return defineClass(name, bytes.toByteArray(), 0, bytes.size());
             }
         };
+        // like JDK 25 launcher: the first top-level class if it has main, otherwise the one named after the file
+        String fileClass = script.getFileName().toString().replaceFirst("\\.java$", "");
+        String first = null;
+        String named = null;
         for (String name : classes.keySet()) {
             // shortcut: nested classes are recognized by '$', top-level classes with '$' in name are not supported
             if (!name.contains("$")) {
+                if (first == null) {
+                    first = name;
+                }
+                if (name.substring(name.lastIndexOf('.') + 1).equals(fileClass)) {
+                    named = name;
+                }
+            }
+        }
+        for (String name : new String[] {first, named}) {
+            if (name != null) {
                 try {
                     Class<?> candidate = loader.loadClass(name);
                     if (findMainOrNull(candidate) != null) {
@@ -240,7 +257,8 @@ public class ScriptPropertySource implements PropertySource {
                 }
             }
         }
-        throw new IllegalStateException("Nisse script has no main method: " + script);
+        throw new IllegalStateException("Nisse script has no main method in its first class nor in class named after"
+                + " the file (" + fileClass + "): " + script);
     }
 
     private static ClassLoader platformClassLoader() {

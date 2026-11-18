@@ -12,7 +12,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.net.ProtocolFamily;
 import java.net.SocketAddress;
@@ -20,14 +19,17 @@ import java.net.StandardProtocolFamily;
 import java.net.URI;
 import java.nio.channels.ByteChannel;
 import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -57,12 +59,17 @@ final class DockerPing {
             return Collections.emptyMap();
         }
         AtomicReference<Closeable> channel = new AtomicReference<>();
+        AtomicBoolean cancelled = new AtomicBoolean();
         AtomicReference<Map<String, String>> headers = new AtomicReference<>();
         // reads from channels/pipes cannot time out, so run it on a thread and close the channel if it hangs
         Thread thread = new Thread(
                 () -> {
                     try (ByteChannel ch = open(host, socket)) {
+                        // publish then check: either caller sees and closes the channel, or we see cancellation
                         channel.set(ch);
+                        if (cancelled.get()) {
+                            return; // connected after timeout
+                        }
                         headers.set(exchange(ch));
                     } catch (Exception e) {
                         // not running
@@ -78,6 +85,7 @@ final class DockerPing {
         }
         boolean hung = thread.isAlive();
         if (hung) {
+            cancelled.set(true);
             closeQuietly(channel.get());
         }
         Map<String, String> h = hung ? null : headers.get();
@@ -98,7 +106,8 @@ final class DockerPing {
             URI uri = URI.create(host);
             return SocketChannel.open(new InetSocketAddress(uri.getHost(), uri.getPort() == -1 ? 2375 : uri.getPort()));
         } else if (host.startsWith(NPIPE)) {
-            return new RandomAccessFile(socket.toFile(), "rw").getChannel();
+            // no CREATE option: never creates a file
+            return FileChannel.open(socket, StandardOpenOption.READ, StandardOpenOption.WRITE);
         } else {
             ProtocolFamily unix = StandardProtocolFamily.valueOf("UNIX");
             SocketChannel ch = (SocketChannel)
@@ -126,12 +135,14 @@ final class DockerPing {
         // read headers only: some engines keep connection open regardless
         InputStream in = new BufferedInputStream(Channels.newInputStream(ch));
         StringBuilder response = new StringBuilder();
+        boolean complete = false;
         int b;
-        while (response.length() < MAX_HEADER_SIZE && (b = in.read()) != -1) {
+        while (!complete && response.length() < MAX_HEADER_SIZE && (b = in.read()) != -1) {
             response.append((char) b);
-            if (response.length() >= 4 && response.lastIndexOf("\r\n\r\n") == response.length() - 4) {
-                break;
-            }
+            complete = endsWithBlankLine(response);
+        }
+        if (!complete) {
+            return null; // truncated or oversized header section
         }
         String[] lines = response.toString().split("\r\n");
         if (!lines[0].matches("HTTP/1\\.[01] 200( .*)?")) {
@@ -147,6 +158,15 @@ final class DockerPing {
             }
         }
         return headers;
+    }
+
+    private static boolean endsWithBlankLine(StringBuilder sb) {
+        int n = sb.length();
+        return n >= 4
+                && sb.charAt(n - 4) == '\r'
+                && sb.charAt(n - 3) == '\n'
+                && sb.charAt(n - 2) == '\r'
+                && sb.charAt(n - 1) == '\n';
     }
 
     private static void closeQuietly(Closeable closeable) {
