@@ -24,9 +24,11 @@
   <name>${project.groupId}:${project.artifactId}</name>
 
   <modules>
+    <module>docker-source</module>
     <module>file-source</module>
     <module>jgit-source</module>
     <module>mvn-source</module>
     <module>os-source</module>
+    <module>script-source</module>
   </modules>
 </project>

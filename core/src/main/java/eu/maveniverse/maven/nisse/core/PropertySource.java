@@ -25,4 +25,15 @@ public interface PropertySource {
      * "mavenized", in a way Apache Maven does: empty values should be replaced with {@code "true"} string.
      */
     Map<String, String> getProperties(NisseConfiguration configuration);
+
+    /**
+     * Returns {@code true} if this source is active unless configured otherwise (default). Sources that are costly or
+     * rarely needed may return {@code false}, and then must be explicitly enabled using
+     * {@code "nisse.source.$source.active=true"} property.
+     *
+     * @see NisseConfiguration#isPropertySourceActive(PropertySource)
+     */
+    default boolean isActiveByDefault() {
+        return true;
+    }
 }

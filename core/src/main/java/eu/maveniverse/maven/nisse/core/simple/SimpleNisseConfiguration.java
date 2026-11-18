@@ -77,7 +77,7 @@ public final class SimpleNisseConfiguration implements NisseConfiguration {
     public boolean isPropertySourceActive(PropertySource source) {
         requireNonNull(source, "source");
         String key = SOURCE_PREFIX + source.getName() + ".active";
-        return Boolean.parseBoolean(getConfiguration().getOrDefault(key, "true"));
+        return Boolean.parseBoolean(getConfiguration().getOrDefault(key, Boolean.toString(source.isActiveByDefault())));
     }
 
     @Override

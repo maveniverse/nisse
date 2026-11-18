@@ -66,6 +66,39 @@ public class SimpleNisseManagerTest {
     }
 
     @Test
+    void inactiveByDefaultSourceNeedsExplicitActivation() {
+        PropertySource optIn = new PropertySource() {
+            @Override
+            public String getName() {
+                return "optin";
+            }
+
+            @Override
+            public Map<String, String> getProperties(NisseConfiguration configuration) {
+                return java.util.Collections.singletonMap("key", "value");
+            }
+
+            @Override
+            public boolean isActiveByDefault() {
+                return false;
+            }
+        };
+        SimpleNisseManager snm = new SimpleNisseManager(Arrays.asList(optIn));
+
+        assertTrue(
+                snm.createProperties(SimpleNisseConfiguration.builder().build()).isEmpty());
+
+        Map<String, String> userProperties = new HashMap<>();
+        userProperties.put("nisse.source.optin.active", "true");
+        assertEquals(
+                "value",
+                snm.createProperties(SimpleNisseConfiguration.builder()
+                                .withUserProperties(userProperties)
+                                .build())
+                        .get("nisse.optin.key"));
+    }
+
+    @Test
     void fallbackPropertiesAreLoaded(@TempDir Path tempDir) throws IOException {
         // Set up .mvn/nisse.properties
         Path mvnDir = tempDir.resolve(".mvn");
