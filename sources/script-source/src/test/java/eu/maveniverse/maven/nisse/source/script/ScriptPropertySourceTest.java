@@ -122,6 +122,28 @@ public class ScriptPropertySourceTest {
         assertTrue(e.getMessage().contains("no main"), e.getMessage());
     }
 
+    @Test
+    void parsePlainLines() {
+        Map<String, String> result = ScriptPropertySource.parse(
+                tmp, "root=D:\\a\\nisse\\temp\r\n# comment\r\n\r\n key = some value \r\nflag=\r\neq=a=b\n");
+        assertEquals("D:\\a\\nisse\\temp", result.get("root"));
+        assertEquals("some value", result.get("key"));
+        assertEquals("true", result.get("flag"));
+        assertEquals("a=b", result.get("eq"));
+        assertEquals(4, result.size());
+    }
+
+    @Test
+    void invalidLineFails() throws IOException {
+        script(
+                "Debug.java",
+                "public class Debug { public static void main(String[] a) {"
+                        + " System.out.println(\"debugging...\"); } }\n");
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> properties("Debug.java"));
+        assertTrue(e.getMessage().contains("debugging..."), e.getMessage());
+        assertThrows(IllegalStateException.class, () -> ScriptPropertySource.parse(tmp, "=value"));
+    }
+
     private void script(String name, String source) throws IOException {
         Files.write(tmp.resolve(name), source.getBytes(StandardCharsets.UTF_8));
     }

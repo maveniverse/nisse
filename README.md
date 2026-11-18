@@ -137,7 +137,7 @@ There are 6 sources provided out of the box:
 * `jgit-source`: it uses Eclipse JGit to get some git related data
 * `mvn-source`: it provides major/minor/patch versions of currently used Maven (note: Maven 4 already provides this from core)
 * `os-source`: heavily inspired by [OS Detector](https://github.com/trustin/os-maven-plugin) and made reusable
-* `script-source`: compiles and runs a Java source file (a "Java script", set with `nisse.source.script.file`, not set by default) in the Maven JVM, following the `java Script.java` contract: configuration on stdin, current directory and session root as arguments, and properties to publish on stdout (extensions only). Any failure fails the build; note that `System.exit()` in the script ends the build
+* `script-source`: compiles and runs a Java source file (a "Java script", set with `nisse.source.script.file`, not set by default) in the Maven JVM, following the `java Script.java` contract: configuration on stdin, current directory and session root as arguments, and properties to publish on stdout as plain `key=value` lines, taken as is with no escaping, so Windows paths printed directly stay intact (extensions only). Any failure fails the build; note that `System.exit()` in the script ends the build
 
 > [!IMPORTANT]
 > `docker-source` and `script-source` are available **in Maven extensions only** (`extension3` and `extension4`), not

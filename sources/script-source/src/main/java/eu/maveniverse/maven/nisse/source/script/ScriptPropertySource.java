@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -56,7 +55,9 @@ import javax.tools.ToolProvider;
  * <ul>
  *     <li>standard input: Nisse configuration (system and user properties) in Java Properties format</li>
  *     <li>{@code args[0]}: current working directory, {@code args[1]}: session root directory</li>
- *     <li>standard output: properties to publish, in Java Properties format (UTF-8)</li>
+ *     <li>standard output: properties to publish, as plain {@code key=value} lines (UTF-8); unlike Java Properties
+ *     format, there is no escaping, so values (like Windows paths) are taken as is; blank lines and {@code #} comments
+ *     are ignored, lines without {@code =} fail the build (use {@code System.err} for diagnostics)</li>
  * </ul>
  * Main method is selected as {@code java} launcher does (static or instance, with or without {@code String[]}).
  * Script sees only JDK classes. Any failure (missing file, compilation error, exception) fails the build.
@@ -87,21 +88,14 @@ public class ScriptPropertySource implements PropertySource {
         }
         Properties input = new Properties();
         input.putAll(configuration.getConfiguration());
-        Properties output = run(
+        return run(
                 script,
                 input,
                 configuration.getCurrentWorkingDirectory().toString(),
                 configuration.getSessionRootDirectory().toString());
-        HashMap<String, String> result = new HashMap<>();
-        // mavenized: empty value means "true"
-        output.stringPropertyNames().forEach(k -> {
-            String v = output.getProperty(k);
-            result.put(k, v.isEmpty() ? Boolean.TRUE.toString() : v);
-        });
-        return Collections.unmodifiableMap(result);
     }
 
-    static Properties run(Path script, Properties input, String... args) {
+    static Map<String, String> run(Path script, Properties input, String... args) {
         Class<?> scriptClass = compile(script);
         Method main = findMainOrNull(scriptClass); // compile() ensures it is not null
         try {
@@ -131,9 +125,7 @@ public class ScriptPropertySource implements PropertySource {
                 thread.setContextClassLoader(oldTccl);
             }
 
-            Properties result = new Properties();
-            result.load(new StringReader(new String(out.toByteArray(), StandardCharsets.UTF_8)));
-            return result;
+            return parse(script, new String(out.toByteArray(), StandardCharsets.UTF_8));
         } catch (InvocationTargetException e) {
             throw new IllegalStateException("Nisse script failed: " + script, e.getCause());
         } catch (IOException e) {
@@ -141,6 +133,29 @@ public class ScriptPropertySource implements PropertySource {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Nisse script cannot be invoked: " + script, e);
         }
+    }
+
+    /**
+     * Parses plain {@code key=value} lines: no escape processing (unlike Java Properties), so values like Windows paths
+     * printed as is stay intact. Blank lines and lines starting with {@code #} are ignored, key and value are trimmed,
+     * and (mavenized) empty value means {@code "true"}.
+     */
+    static Map<String, String> parse(Path script, String output) {
+        HashMap<String, String> result = new HashMap<>();
+        for (String line : output.split("\\r?\\n")) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                continue;
+            }
+            int idx = trimmed.indexOf('=');
+            if (idx < 1) {
+                throw new IllegalStateException("Nisse script " + script + " printed invalid line (expected key=value;"
+                        + " use System.err for diagnostic output): " + line);
+            }
+            String value = trimmed.substring(idx + 1).trim();
+            result.put(trimmed.substring(0, idx).trim(), value.isEmpty() ? Boolean.TRUE.toString() : value);
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     /**
